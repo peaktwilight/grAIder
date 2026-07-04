@@ -3,6 +3,7 @@ stages:
   - test
   - build
   - publish
+  - deploy
 
 default:
   image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
@@ -73,3 +74,13 @@ publish-package:
       --username gitlab-ci-token
       --password "${CI_JOB_TOKEN}"
       dist/*
+
+pages:
+  stage: deploy
+  script:
+    - uv run mkdocs build --site-dir public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
