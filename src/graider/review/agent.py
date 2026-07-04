@@ -187,11 +187,14 @@ def review_project(
 
 
 def head_sha(repo_dir: Path) -> str:
-    proc = subprocess.run(
-        ["git", "-C", str(repo_dir), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_dir), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        return ""
     return proc.stdout.strip() if proc.returncode == 0 else ""
 
 
