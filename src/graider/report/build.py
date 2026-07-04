@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import csv
 import json
+from collections import Counter
 from pathlib import Path
 
 from graider.errors import GraiderError
 from graider.models import GradeResult, ReviewResult, SetupState
+
+_LEVELS = ("emerging", "developing", "proficient", "exemplary")
 
 CSV_COLUMNS = [
     "project",
@@ -70,6 +73,48 @@ def flag_discrepancies(grade: GradeResult | None, review: ReviewResult | None) -
     if ratio <= 0.3 and grade.tests_failed == 0 and grade.tests_passed > 0:
         flags.append(f"AI passed only {met}/{total} criteria but all tests pass")
     return flags
+
+
+def class_insights(pairs: list[tuple[GradeResult | None, ReviewResult | None]]) -> str:
+    """Aggregate reviews across the class: per-criterion distributions + flags.
+
+    Computed from existing review results — no extra LLM calls. Meant as a
+    teaching signal (a criterion unmet across the class is a cue to reteach).
+    """
+    reviews = [r for _, r in pairs if r is not None]
+    lines = ["# Class insights", "", f"Projects reviewed: {len(reviews)}", ""]
+    if not reviews:
+        return "\n".join([*lines, "_No reviews to aggregate._", ""])
+
+    # Aggregate each criterion's level distribution and met rate across projects.
+    titles: dict[str, str] = {}
+    levels: dict[str, Counter[str]] = {}
+    met: dict[str, int] = {}
+    total: dict[str, int] = {}
+    for review in reviews:
+        for v in review.criteria:
+            titles.setdefault(v.id, v.title)
+            levels.setdefault(v.id, Counter())[v.level.value] += 1
+            met[v.id] = met.get(v.id, 0) + (1 if v.met else 0)
+            total[v.id] = total.get(v.id, 0) + 1
+
+    def met_rate(cid: str) -> float:
+        return met[cid] / total[cid] if total[cid] else 1.0
+
+    lines += [
+        "## Per criterion (most-missed first)",
+        "",
+        "| Criterion | Met % | " + " | ".join(_LEVELS) + " |",
+        "| --- | --- | " + " | ".join("---" for _ in _LEVELS) + " |",
+    ]
+    for cid in sorted(titles, key=met_rate):
+        pct = round(100 * met[cid] / total[cid]) if total[cid] else 0
+        row = " | ".join(str(levels[cid][lvl]) for lvl in _LEVELS)
+        lines.append(f"| {cid}. {titles[cid]} | {pct}% | {row} |")
+
+    flagged = [(g, r) for g, r in pairs if flag_discrepancies(g, r)]
+    lines += ["", f"Projects with AI-vs-metrics discrepancies: {len(flagged)}", ""]
+    return "\n".join(lines)
 
 
 def render_report(grade: GradeResult | None, review: ReviewResult | None, url: str = "") -> str:

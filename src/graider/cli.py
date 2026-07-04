@@ -43,10 +43,11 @@ from graider.feedback.render import REVIEW_MARKER, issue_title, render_feedback
 from graider.gitlab_client import GitLabClient
 from graider.grading.runner import grade_project
 from graider.interview.agent import generate_interview, render_interview_md, select_topics
-from graider.models import MemberState, ProjectState, ReviewResult
+from graider.models import GradeResult, MemberState, ProjectState, ReviewResult
 from graider.names import random_name
 from graider.project_config import load_repo_config
 from graider.report.build import (
+    class_insights,
     load_grades,
     load_reviews,
     project_urls,
@@ -598,6 +599,7 @@ def report(
     )
 
     rows: list[dict[str, object]] = []
+    pairs: list[tuple[Optional[GradeResult], Optional[ReviewResult]]] = []
     for directory in dirs:
         grades = {g.project: g for g in load_grades(directory / grade_file.name)}
         reviews = {r.project: r for r in load_reviews(directory / review_file.name)}
@@ -608,13 +610,15 @@ def report(
             url = urls.get(name, "")
             (out_dir / f"{name}.md").write_text(render_report(grade, review, url), encoding="utf-8")
             rows.append(summary_row(grade, review, url))
+            pairs.append((grade, review))
 
     if not rows:
         raise GraiderError("No grade-results.json / review-results.json found to report on.")
 
     write_csv(rows, out_dir / "summary.csv")
+    (out_dir / "class-insights.md").write_text(class_insights(pairs), encoding="utf-8")
     print_report_summary(rows, out_dir)
-    print_success(f"Wrote {len(rows)} report(s) → {out_dir}")
+    print_success(f"Wrote {len(rows)} report(s) + class-insights.md → {out_dir}")
 
 
 template_app = typer.Typer(help="Inspect and render starter templates.")
