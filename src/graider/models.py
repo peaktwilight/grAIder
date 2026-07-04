@@ -115,3 +115,29 @@ class CriteriaItem(BaseModel):
 class Criteria(BaseModel):
     brief: str = ""
     items: list[CriteriaItem] = []
+
+
+class CriterionVerdict(BaseModel):
+    id: str
+    title: str
+    met: bool
+    evidence: list[str]  # e.g. "src/calc.py:12 — no error handling"
+    comment: str
+
+
+class ReviewOutput(BaseModel):
+    """Exactly what the model returns (structured-output schema)."""
+
+    overall_summary: str
+    criteria: list[CriterionVerdict]
+
+
+class ReviewResult(BaseModel):
+    """Persisted result = model output + run metadata."""
+
+    project: str
+    head_sha: str
+    model: str
+    cutoff: str
+    overall_summary: str
+    criteria: list[CriterionVerdict]

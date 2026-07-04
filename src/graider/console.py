@@ -9,6 +9,7 @@ from graider.models import (
     Group,
     InviteResult,
     InviteStatus,
+    ReviewResult,
     SetupState,
     Student,
 )
@@ -132,3 +133,16 @@ def print_criteria_scope(in_scope: list[CriteriaItem], out_scope: list[CriteriaI
     for item in out_scope:
         table.add_row(str(item.order), item.id, item.title, "[dim]not yet evaluated[/]")
     console.print(table)
+
+
+def print_review(result: ReviewResult) -> None:
+    table = Table(title=f"Review — {result.project}")
+    table.add_column("ID")
+    table.add_column("Criterion")
+    table.add_column("Met")
+    table.add_column("Comment")
+    for verdict in result.criteria:
+        met = "[green]✓[/]" if verdict.met else "[red]✗[/]"
+        table.add_row(verdict.id, verdict.title, met, verdict.comment)
+    console.print(table)
+    console.print(f"\n[bold]Summary:[/] {result.overall_summary}")

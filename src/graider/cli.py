@@ -16,6 +16,7 @@ from graider.console import (
     print_error,
     print_grade_table,
     print_project_summary,
+    print_review,
     print_setup_preview,
     print_success,
 )
@@ -31,6 +32,7 @@ from graider.grading.runner import grade_project
 from graider.models import MemberState, ProjectState
 from graider.names import random_name
 from graider.project_config import load_repo_config
+from graider.review.agent import DEFAULT_MODEL, head_sha, review_project
 from graider.roster import group_students, read_roster
 from graider.state import load_state, save_state
 from graider.templates import (
@@ -244,6 +246,9 @@ def review(
     criteria_path: str = typer.Option("", "--criteria-path"),
     up_to: Optional[str] = typer.Option(None, "--up-to", help="Position or item id."),
     dry_run: bool = typer.Option(False, "--dry-run"),
+    model: str = typer.Option(DEFAULT_MODEL, "--model", help="Claude model id."),
+    force: bool = typer.Option(False, "--force", help="Re-review even if HEAD is unchanged."),
+    results: Path = typer.Option(Path("review-results.json"), "--results"),
 ) -> None:
     """Evaluate a repo against the (staggered) criteria. (loading + preview)"""
     config = _config(ctx)
@@ -258,7 +263,23 @@ def review(
         print_success(f"{len(in_scope)} of {len(criteria.items)} criteria in scope (dry run).")
         return
 
-    console.print("review: AI evaluation not yet implemented (Milestone 8)")
+    results_path = results
+    if not force and results_path.exists():
+        prior = json.loads(results_path.read_text(encoding="utf-8"))
+        if prior.get("head_sha") and prior["head_sha"] == head_sha(repo):
+            console.print("Repo unchanged since last review; use --force to re-run.")
+            return
+
+    result = review_project(
+        repo,
+        criteria.brief,
+        in_scope,
+        cutoff=str(cutoff) if cutoff is not None else "",
+        model=model,
+    )
+    print_review(result)
+    results_path.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    print_success(f"Reviewed {len(in_scope)} criteria → {results_path}")
 
 
 def _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path) -> Path:
