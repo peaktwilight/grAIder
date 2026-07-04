@@ -180,6 +180,16 @@ class ReviewOutput(BaseModel):
     criteria: list[CriterionVerdict]
 
 
+class ProgressEntry(BaseModel):
+    """How one criterion changed relative to the previous review."""
+
+    id: str
+    title: str
+    change: str  # "improved" | "regressed" | "unchanged" | "new"
+    from_level: str = ""
+    to_level: str = ""
+
+
 class ReviewResult(BaseModel):
     """Persisted result = model output + run metadata."""
 
@@ -192,6 +202,9 @@ class ReviewResult(BaseModel):
     warnings: list[str] = []  # teacher-facing flags, e.g. possible prompt injection
     published: bool = False  # posted to GitLab via `review publish` (teacher-approved)
     published_at: str = ""  # ISO timestamp of publication
+    revision_of: str = ""  # head_sha of the prior review this one revises
+    progress: list[ProgressEntry] = []  # per-criterion change vs the prior review
+    formative: bool = False  # self-check tone: next-steps focus, not grade-framed
 
 
 class LevelDescriptors(BaseModel):

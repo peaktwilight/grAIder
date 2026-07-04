@@ -75,6 +75,27 @@ This will:
 
 ---
 
+## Revision cadence (self-check → revise → submit)
+
+Feedback only helps if you act on it. The intended loop is:
+
+1. **Self-check** — run a formative review while you work; it focuses on what to
+   try next, not a grade:
+
+   ```bash
+   graider review --formative
+   ```
+
+2. **Revise** — pick up the "Where to next?" steps and improve your code.
+3. **Submit** — when you are ready, the milestone review runs against your latest
+   commit. A published review shows a **Progress since last review** section so
+   you (and your instructor) can see which criteria improved.
+
+Your instructor decides whether a milestone review can be re-requested after
+feedback; where allowed, the grade reflects your post-feedback work.
+
+---
+
 ## 4. Using grAIder with Claude Code
 
 If you use **Claude Code** for development, you can install the grAIder Agent Skill. This allows Claude Code to directly run `graider grade` and `graider review` on your behalf, helping you fix lint errors or failing tests interactively.
