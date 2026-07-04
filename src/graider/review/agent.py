@@ -456,14 +456,15 @@ _UNTRUSTED_FILES_HEADER = (
 
 
 def _neutralize_markers(text: str) -> str:
-    """Break any ``<<<`` run so file content cannot spoof the BEGIN/END delimiters.
+    """Break every run of ``<`` so file content cannot spoof the BEGIN/END delimiters.
 
     A student file containing a literal ``<<<END FILE ...>>>`` line would
     otherwise close its own untrusted block and smuggle text into the trusted
-    region. Inserting a zero-width space after the first bracket defeats that
-    without meaningfully changing how the code reads.
+    region. A zero-width space is inserted after each ``<`` that is followed by
+    another ``<``, so no ``<<`` — and thus no ``<<<`` marker — can survive, even
+    one reconstructed from a longer bracket run (``<<<<``).
     """
-    return text.replace("<<<", "<​<<")  # zero-width space breaks the run
+    return re.sub(r"<(?=<)", "<​", text)
 
 
 def _format_files(files: list[tuple[str, str]]) -> str:
