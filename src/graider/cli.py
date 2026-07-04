@@ -38,6 +38,7 @@ from graider.errors import GraiderError
 from graider.feedback.render import REVIEW_MARKER, issue_title, render_feedback
 from graider.gitlab_client import GitLabClient
 from graider.grading.runner import grade_project
+from graider.interview.agent import generate_interview, render_interview_md, select_topics
 from graider.models import MemberState, ProjectState, ReviewResult
 from graider.names import random_name
 from graider.project_config import load_repo_config
@@ -380,6 +381,50 @@ def _post_feedback(
         raise GraiderError("--feedback mr needs --mr-iid or --branch with an open merge request.")
     client.upsert_mr_note(project_id, iid, body, REVIEW_MARKER)
     print_success(f"Posted review to MR !{iid} on {project_id}.")
+
+
+@app.command()
+def interview(
+    ctx: typer.Context,
+    repo: Path = typer.Option(Path("."), "--repo", help="Student project repo."),
+    criteria_dir: Optional[Path] = typer.Option(None, "--criteria-dir"),
+    criteria_repo: str = typer.Option("", "--criteria-repo"),
+    criteria_path: str = typer.Option("", "--criteria-path"),
+    topic: Optional[list[str]] = typer.Option(
+        None, "--topic", help="Topic id or title substring (repeatable). Omit for all."
+    ),
+    prompt: str = typer.Option("", "--prompt", help="Extra guidance to steer the questions."),
+    per_topic: int = typer.Option(3, "--per-topic", help="Questions per topic."),
+    out: Path = typer.Option(Path("interview.md"), "--out"),
+    model: str = typer.Option(DEFAULT_MODEL, "--model"),
+    backend: str = typer.Option("auto", "--backend", help="auto | api | claude-code."),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+) -> None:
+    """Generate viva questions probing a student's understanding of their project."""
+    config = _config(ctx)
+    source = _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path)
+    criteria = load_criteria_dir(source)
+    topics = select_topics(criteria.items, list(topic or []))
+
+    if dry_run or config.dry_run:
+        console.print("Topics to examine:")
+        for item in topics:
+            console.print(f"  {item.id}. {item.title}")
+        print_success(f"{len(topics)} topic(s) (dry run, no questions generated).")
+        return
+
+    output = generate_interview(
+        repo,
+        criteria.brief,
+        topics,
+        guidance=prompt,
+        per_topic=per_topic,
+        model=model,
+        backend=select_backend(backend),
+    )
+    out.write_text(render_interview_md(repo.resolve().name, output), encoding="utf-8")
+    total = sum(len(t.questions) for t in output.topics)
+    print_success(f"Wrote {total} questions across {len(topics)} topic(s) → {out}")
 
 
 @app.command()

@@ -11,13 +11,15 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, TypeVar
 
 import anthropic
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from graider.errors import GraiderError
 from graider.models import CriteriaItem, GradeResult, ReviewOutput, ReviewResult
+
+T = TypeVar("T", bound=BaseModel)
 
 DEFAULT_MODEL = "claude-opus-4-8"
 _MAX_TOTAL_BYTES = 200_000
@@ -50,8 +52,8 @@ _SYSTEM = (
 )
 
 
-class ReviewBackend(Protocol):
-    def run(self, system: str, user_prompt: str, model: str) -> ReviewOutput: ...
+class ModelBackend(Protocol):
+    def run(self, system: str, user_prompt: str, model: str, output_format: type[T]) -> T: ...
 
 
 class ApiBackend:
@@ -60,7 +62,7 @@ class ApiBackend:
     def __init__(self, client: anthropic.Anthropic | None = None) -> None:
         self._client = client
 
-    def run(self, system: str, user_prompt: str, model: str) -> ReviewOutput:
+    def run(self, system: str, user_prompt: str, model: str, output_format: type[T]) -> T:
         client = self._client or anthropic.Anthropic()
         try:
             response = client.messages.parse(
@@ -68,21 +70,21 @@ class ApiBackend:
                 max_tokens=16000,
                 system=system,
                 messages=[{"role": "user", "content": user_prompt}],
-                output_format=ReviewOutput,
+                output_format=output_format,
             )
         except Exception as exc:
             raise GraiderError(
-                f"AI review failed ({exc}). Check your Anthropic credentials "
+                f"AI call failed ({exc}). Check your Anthropic credentials "
                 "(set ANTHROPIC_API_KEY or run `ant auth login`)."
             ) from exc
         output = response.parsed_output
         if output is None:
-            raise GraiderError("AI review response could not be parsed.")
+            raise GraiderError("AI response could not be parsed.")
         return output
 
 
 class ClaudeCodeBackend:
-    """Run the review through the Claude Code CLI headless mode (subscription).
+    """Run the model through the Claude Code CLI headless mode (subscription).
 
     `runner(prompt, model) -> str` is injectable for tests; the default shells
     out to `claude -p ... --output-format json`.
@@ -91,15 +93,15 @@ class ClaudeCodeBackend:
     def __init__(self, runner=None) -> None:
         self._runner = runner or _run_claude
 
-    def run(self, system: str, user_prompt: str, model: str) -> ReviewOutput:
-        schema = json.dumps(ReviewOutput.model_json_schema())
+    def run(self, system: str, user_prompt: str, model: str, output_format: type[T]) -> T:
+        schema = json.dumps(output_format.model_json_schema())
         prompt = (
             f"{system}\n\nReturn ONLY minified JSON matching this JSON schema, "
             f"with no prose or markdown fences:\n{schema}\n\n{user_prompt}"
         )
         text = self._runner(prompt, model)
         try:
-            return ReviewOutput.model_validate_json(_extract_json(text))
+            return output_format.model_validate_json(_extract_json(text))
         except (ValidationError, ValueError):
             repair = (
                 "Your previous reply was not valid JSON for the schema. "
@@ -107,12 +109,12 @@ class ClaudeCodeBackend:
             )
             text = self._runner(f"{prompt}\n\n{repair}", model)
             try:
-                return ReviewOutput.model_validate_json(_extract_json(text))
+                return output_format.model_validate_json(_extract_json(text))
             except (ValidationError, ValueError) as exc:
                 raise GraiderError(f"Claude Code returned invalid JSON: {exc}") from exc
 
 
-def select_backend(name: str, *, client: anthropic.Anthropic | None = None) -> ReviewBackend:
+def select_backend(name: str, *, client: anthropic.Anthropic | None = None) -> ModelBackend:
     """Pick a backend: 'api', 'claude-code', or 'auto'."""
     if name == "api":
         return ApiBackend(client=client)
@@ -168,12 +170,12 @@ def review_project(
     grade: GradeResult | None = None,
     cutoff: str = "",
     model: str = DEFAULT_MODEL,
-    backend: ReviewBackend | None = None,
+    backend: ModelBackend | None = None,
     client: anthropic.Anthropic | None = None,
 ) -> ReviewResult:
     backend = backend or ApiBackend(client=client)
     user_prompt = _build_prompt(brief, in_scope, grade, _collect_files(repo_dir))
-    output = backend.run(_SYSTEM, user_prompt, model)
+    output = backend.run(_SYSTEM, user_prompt, model, ReviewOutput)
     return ReviewResult(
         project=repo_dir.name,
         head_sha=head_sha(repo_dir),

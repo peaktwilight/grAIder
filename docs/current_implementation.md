@@ -25,6 +25,7 @@ Built on Typer, `graider` exposes several subcommands and tool groups:
     *   Supports `--backend auto|api|claude-code` where `claude-code` relies on a Claude Pro/Max subscription via the Claude Code CLI.
     *   Enables automated feedback posting back to GitLab via `--feedback mr|issue` (posting directly as a Merge Request note or an Issue).
 *   **`graider report`**: Merges functional grading (`grade-results.json`) and AI reviews (`review-results.json`) into digestible per-project Markdown reports and generates a consolidated `summary.csv` for course-wide grading.
+*   **`graider interview`**: Generates oral-exam (viva) questions that probe whether a student understands their own project and how it connects to the curriculum. Works on a single topic or several (`--topic`, repeatable; omit for all), takes an optional `--prompt` to steer the questions, and writes a Markdown file where each question is followed by the key points a correct answer should cover and red flags to watch for. Shares the `--backend auto|api|claude-code` model plumbing with `review`.
 
 ### Auxiliary Commands
 

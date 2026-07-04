@@ -73,7 +73,7 @@ def test_claude_code_backend_parses_json():
         criteria=[CriterionVerdict(id="1", title="A", met=True, evidence=[], comment="c")],
     )
     backend = ClaudeCodeBackend(runner=lambda prompt, model: out.model_dump_json())
-    result = backend.run("sys", "user", "opus")
+    result = backend.run("sys", "user", "opus", ReviewOutput)
     assert result.overall_summary == "ok"
 
 
@@ -81,7 +81,7 @@ def test_claude_code_backend_extracts_fenced_json():
     out = ReviewOutput(overall_summary="ok", criteria=[])
     fenced = f"```json\n{out.model_dump_json()}\n```"
     backend = ClaudeCodeBackend(runner=lambda prompt, model: fenced)
-    assert backend.run("s", "u", "m").overall_summary == "ok"
+    assert backend.run("s", "u", "m", ReviewOutput).overall_summary == "ok"
 
 
 def test_claude_code_backend_repairs_once():
@@ -93,7 +93,7 @@ def test_claude_code_backend_repairs_once():
         return "not json" if calls["n"] == 1 else out.model_dump_json()
 
     backend = ClaudeCodeBackend(runner=runner)
-    assert backend.run("s", "u", "m").overall_summary == "fixed"
+    assert backend.run("s", "u", "m", ReviewOutput).overall_summary == "fixed"
     assert calls["n"] == 2
 
 
@@ -102,7 +102,7 @@ def test_claude_code_backend_gives_up():
 
     backend = ClaudeCodeBackend(runner=lambda prompt, model: "still not json")
     with pytest.raises(GraiderError, match="invalid JSON"):
-        backend.run("s", "u", "m")
+        backend.run("s", "u", "m", ReviewOutput)
 
 
 def test_extract_json_plain_and_fenced():

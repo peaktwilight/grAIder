@@ -151,3 +151,18 @@ class DraftItem(BaseModel):
 class CriteriaDraft(BaseModel):
     brief: str
     items: list[DraftItem]
+
+
+class InterviewQuestion(BaseModel):
+    question: str
+    key_points: list[str]  # what a correct answer must cover
+    red_flags: list[str]  # signs the student doesn't understand their own project
+
+
+class InterviewTopic(BaseModel):
+    topic: str
+    questions: list[InterviewQuestion]
+
+
+class InterviewOutput(BaseModel):
+    topics: list[InterviewTopic]
