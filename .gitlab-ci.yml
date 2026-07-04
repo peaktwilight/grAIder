@@ -1,0 +1,75 @@
+stages:
+  - lint
+  - test
+  - build
+  - publish
+
+default:
+  image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+  cache:
+    key:
+      files:
+        - uv.lock
+    paths:
+      - .uv-cache
+  before_script:
+    - uv sync --frozen
+
+variables:
+  UV_CACHE_DIR: .uv-cache
+  UV_LINK_MODE: copy
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+ruff-lint:
+  stage: lint
+  script:
+    - uv run ruff check --output-format=gitlab . > ruff-report.json
+  artifacts:
+    reports:
+      codequality: ruff-report.json
+    when: always
+
+ruff-format:
+  stage: lint
+  script:
+    - uv run ruff format --check .
+
+ty-check:
+  stage: lint
+  script:
+    - uv run ty check
+
+pytest:
+  stage: test
+  script:
+    - uv run pytest --junit-xml=junit-report.xml
+  artifacts:
+    reports:
+      junit: junit-report.xml
+    when: always
+
+build-package:
+  stage: build
+  script:
+    - uv build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+
+# Publishes to this project's GitLab PyPI package registry on version tags.
+publish-package:
+  stage: publish
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+  script:
+    - uv publish
+      --publish-url "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi"
+      --username gitlab-ci-token
+      --password "${CI_JOB_TOKEN}"
+      dist/*
