@@ -6,7 +6,13 @@ from pathlib import Path
 
 from graider.errors import GraiderError
 from graider.models import CriteriaItem, InterviewOutput
-from graider.review.agent import DEFAULT_MODEL, ModelBackend, _collect_files, _format_files
+from graider.review.agent import (
+    DEFAULT_MODEL,
+    ModelBackend,
+    _collect_files,
+    _format_files,
+    detect_injection,
+)
 
 _SYSTEM = (
     "You are an oral-exam (viva) examiner for a programming course. Given the "
@@ -52,6 +58,19 @@ def recent_commits(repo_dir: Path, limit: int = 15) -> list[str]:
     if proc.returncode != 0:
         return []
     return [line for line in proc.stdout.splitlines() if line.strip()]
+
+
+def interview_warnings(repo_dir: Path) -> list[str]:
+    """Flag prompt-injection attempts in files and commit messages for the teacher.
+
+    The interview prompt already wraps these as untrusted, but a teacher running
+    `graider interview` without a review would otherwise never see the flags.
+    """
+    warnings = detect_injection(_collect_files(repo_dir))
+    commits = recent_commits(repo_dir)
+    if commits:
+        warnings += detect_injection([("git log", "\n".join(commits))])
+    return warnings
 
 
 def select_topics(items: list[CriteriaItem], wanted: list[str]) -> list[CriteriaItem]:
