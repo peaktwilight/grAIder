@@ -94,6 +94,16 @@ class SetupState(BaseModel):
     projects: dict[str, ProjectState] = {}
 
 
+class HistoryMetrics(BaseModel):
+    """Neutral git-history signals for teacher triage (never an auto-penalty)."""
+
+    commits: int = 0
+    commit_days: int = 0  # distinct calendar days with commits (cadence)
+    span_days: int = 0  # days from first to last commit
+    authors: dict[str, int] = {}  # author email -> commit count (contribution split)
+    largest_commit_lines: int = 0  # biggest single commit, added+removed (code drops)
+
+
 class GradeResult(BaseModel):
     project: str
     template: str
@@ -103,6 +113,7 @@ class GradeResult(BaseModel):
     tests_failed: int = 0
     coverage_percent: float | None = None
     errors: list[str] = []
+    history: HistoryMetrics | None = None
 
 
 class PerformanceLevel(StrEnum):

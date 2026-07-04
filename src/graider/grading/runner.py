@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from graider.errors import GraiderError
+from graider.grading.history import analyze_history
 from graider.models import GradeResult
 from graider.project_config import load_repo_config
 
@@ -21,6 +22,7 @@ def grade_project(repo_dir: Path) -> GradeResult:
     result = GradeResult(project=repo_dir.name, template=config.template)
     _run_qlty(repo_dir, result)
     _run_tests(repo_dir, config.template, result)
+    result.history = analyze_history(repo_dir)
     return result
 
 
