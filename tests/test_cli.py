@@ -241,3 +241,30 @@ def test_review_dry_run_lists_scope(tmp_path, monkeypatch):
     assert result.exit_code == 0
     assert "in scope" in result.output
     assert "not yet evaluated" in result.output
+
+
+def test_report_single_dir(tmp_path, monkeypatch):
+    import json as _json
+
+    (tmp_path / "grade-results.json").write_text(
+        _json.dumps(
+            [
+                {
+                    "project": "p",
+                    "template": "python",
+                    "tests_passed": 1,
+                    "tests_failed": 0,
+                    "coverage_percent": 90.0,
+                    "qlty_issues": 0,
+                    "qlty_smells": 0,
+                    "errors": [],
+                }
+            ]
+        )
+    )
+    out_dir = tmp_path / "reports"
+    monkeypatch.chdir(tmp_path)
+    result = run_cli([*_no_config(tmp_path), "report", "--out-dir", str(out_dir)])
+    assert result.exit_code == 0
+    assert (out_dir / "p.md").exists()
+    assert (out_dir / "summary.csv").exists()

@@ -32,6 +32,22 @@ def print_success(message: str) -> None:
     console.print(f"[bold green]✓[/] {message}")
 
 
+def print_report_summary(rows: list[dict[str, object]], out_dir: Path) -> None:
+    table = Table(title="Report")
+    table.add_column("Project", style="bold")
+    table.add_column("Tests", justify="right")
+    table.add_column("Cov %", justify="right")
+    table.add_column("Criteria", justify="right")
+    for row in rows:
+        tests = f"{row['tests_passed']}/{row['tests_failed']}" if row["tests_passed"] != "" else "-"
+        cov = row["coverage_percent"] if row["coverage_percent"] != "" else "-"
+        crit = (
+            f"{row['criteria_met']}/{row['criteria_total']}" if row["criteria_total"] != "" else "-"
+        )
+        table.add_row(str(row["project"]), str(tests), str(cov), str(crit))
+    console.print(table)
+
+
 def print_check_report(criteria_dir: Path, problems: list[str]) -> None:
     if not problems:
         print_success(f"{criteria_dir}: criteria OK")

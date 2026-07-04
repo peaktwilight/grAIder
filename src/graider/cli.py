@@ -23,6 +23,7 @@ from graider.console import (
     print_error,
     print_grade_table,
     print_project_summary,
+    print_report_summary,
     print_review,
     print_setup_preview,
     print_success,
@@ -39,6 +40,14 @@ from graider.grading.runner import grade_project
 from graider.models import MemberState, ProjectState
 from graider.names import random_name
 from graider.project_config import load_repo_config
+from graider.report.build import (
+    load_grades,
+    load_reviews,
+    project_urls,
+    render_report,
+    summary_row,
+    write_csv,
+)
 from graider.review.agent import DEFAULT_MODEL, head_sha, review_project
 from graider.roster import group_students, read_roster
 from graider.state import load_state, save_state
@@ -304,9 +313,42 @@ def _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path) -> P
 
 
 @app.command()
-def report(ctx: typer.Context) -> None:
-    """Aggregate and export results. (stub)"""
-    console.print("report: not yet implemented")
+def report(
+    ctx: typer.Context,
+    workspace: Optional[Path] = typer.Option(None, "--workspace"),
+    grade_file: Path = typer.Option(Path("grade-results.json"), "--grade"),
+    review_file: Path = typer.Option(Path("review-results.json"), "--review"),
+    state: Optional[Path] = typer.Option(None, "--state"),
+    out_dir: Path = typer.Option(Path("reports"), "--out-dir"),
+) -> None:
+    """Merge grade + review results into per-project reports and a CSV."""
+    urls = project_urls(state)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    dirs = (
+        sorted(d for d in workspace.iterdir() if d.is_dir())
+        if workspace is not None
+        else [Path(".")]
+    )
+
+    rows: list[dict[str, object]] = []
+    for directory in dirs:
+        grades = {g.project: g for g in load_grades(directory / grade_file.name)}
+        reviews = {r.project: r for r in load_reviews(directory / review_file.name)}
+        names = list(grades) or list(reviews)
+        for name in names:
+            grade = grades.get(name)
+            review = reviews.get(name)
+            url = urls.get(name, "")
+            (out_dir / f"{name}.md").write_text(render_report(grade, review, url), encoding="utf-8")
+            rows.append(summary_row(grade, review, url))
+
+    if not rows:
+        raise GraiderError("No grade-results.json / review-results.json found to report on.")
+
+    write_csv(rows, out_dir / "summary.csv")
+    print_report_summary(rows, out_dir)
+    print_success(f"Wrote {len(rows)} report(s) → {out_dir}")
 
 
 template_app = typer.Typer(help="Inspect and render starter templates.")
