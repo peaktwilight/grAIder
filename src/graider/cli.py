@@ -48,7 +48,7 @@ from graider.report.build import (
     summary_row,
     write_csv,
 )
-from graider.review.agent import DEFAULT_MODEL, head_sha, review_project
+from graider.review.agent import DEFAULT_MODEL, head_sha, review_project, select_backend
 from graider.roster import group_students, read_roster
 from graider.state import load_state, save_state
 from graider.templates import (
@@ -294,6 +294,9 @@ def review(
     model: str = typer.Option(DEFAULT_MODEL, "--model", help="Claude model id."),
     force: bool = typer.Option(False, "--force", help="Re-review even if HEAD is unchanged."),
     results: Path = typer.Option(Path("review-results.json"), "--results"),
+    backend: str = typer.Option(
+        "auto", "--backend", help="Model backend: auto | api | claude-code."
+    ),
 ) -> None:
     """Evaluate a repo against the (staggered) criteria. (loading + preview)"""
     config = _config(ctx)
@@ -321,6 +324,7 @@ def review(
         in_scope,
         cutoff=str(cutoff) if cutoff is not None else "",
         model=model,
+        backend=select_backend(backend),
     )
     print_review(result)
     results_path.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")

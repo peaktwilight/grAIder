@@ -55,3 +55,66 @@ def test_collect_files_skips_junk(tmp_path):
     assert "keep.py" in names
     assert not any(".venv" in n for n in names)
     assert "img.png" not in names
+
+
+# --- E5: backends ---
+
+from graider.review.agent import (  # noqa: E402
+    ApiBackend,
+    ClaudeCodeBackend,
+    _extract_json,
+    select_backend,
+)
+
+
+def test_claude_code_backend_parses_json():
+    out = ReviewOutput(
+        overall_summary="ok",
+        criteria=[CriterionVerdict(id="1", title="A", met=True, evidence=[], comment="c")],
+    )
+    backend = ClaudeCodeBackend(runner=lambda prompt, model: out.model_dump_json())
+    result = backend.run("sys", "user", "opus")
+    assert result.overall_summary == "ok"
+
+
+def test_claude_code_backend_extracts_fenced_json():
+    out = ReviewOutput(overall_summary="ok", criteria=[])
+    fenced = f"```json\n{out.model_dump_json()}\n```"
+    backend = ClaudeCodeBackend(runner=lambda prompt, model: fenced)
+    assert backend.run("s", "u", "m").overall_summary == "ok"
+
+
+def test_claude_code_backend_repairs_once():
+    out = ReviewOutput(overall_summary="fixed", criteria=[])
+    calls = {"n": 0}
+
+    def runner(prompt, model):
+        calls["n"] += 1
+        return "not json" if calls["n"] == 1 else out.model_dump_json()
+
+    backend = ClaudeCodeBackend(runner=runner)
+    assert backend.run("s", "u", "m").overall_summary == "fixed"
+    assert calls["n"] == 2
+
+
+def test_claude_code_backend_gives_up():
+    from graider.errors import GraiderError
+
+    backend = ClaudeCodeBackend(runner=lambda prompt, model: "still not json")
+    with pytest.raises(GraiderError, match="invalid JSON"):
+        backend.run("s", "u", "m")
+
+
+def test_extract_json_plain_and_fenced():
+    assert _extract_json('{"a": 1}') == '{"a": 1}'
+    assert _extract_json('prefix {"a": 1} suffix') == '{"a": 1}'
+
+
+def test_select_backend_explicit():
+    assert isinstance(select_backend("api"), ApiBackend)
+    assert isinstance(select_backend("claude-code"), ClaudeCodeBackend)
+
+
+def test_select_backend_auto_prefers_api_with_key(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-x")
+    assert isinstance(select_backend("auto"), ApiBackend)
