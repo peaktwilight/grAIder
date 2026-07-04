@@ -69,3 +69,26 @@ class ProjectRef(BaseModel):
 class RenderedFile(BaseModel):
     path: str  # target path in the repo, e.g. ".graider.yml"
     content: str
+
+
+class MemberState(BaseModel):
+    email: str
+    status: InviteStatus
+    username: str | None = None
+
+
+class ProjectState(BaseModel):
+    group_number: str
+    name: str
+    project_id: int
+    web_url: str
+    path_with_namespace: str
+    template: str
+    members: list[MemberState] = []
+
+
+class SetupState(BaseModel):
+    gitlab_url: str = ""
+    org: str = ""
+    # keyed by group_number
+    projects: dict[str, ProjectState] = {}

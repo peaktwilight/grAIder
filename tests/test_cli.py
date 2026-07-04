@@ -1,9 +1,11 @@
 import sys
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
+from unittest.mock import MagicMock
 
 from graider import __version__
 from graider.cli import run
+from graider.models import InviteResult, InviteStatus, ProjectRef
 
 
 def _no_config(tmp_path):
@@ -67,7 +69,7 @@ def _roster(tmp_path):
 def test_setup_without_token_shows_url(tmp_path, monkeypatch):
     monkeypatch.delenv("GITLAB_TOKEN", raising=False)
     result = run_cli(
-        [*_no_config(tmp_path), "setup", "--roster", _roster(tmp_path)],
+        [*_no_config(tmp_path), "setup", "--roster", _roster(tmp_path), "--org", "swe/2026"],
         env={},
         monkeypatch=monkeypatch,
     )
@@ -76,14 +78,25 @@ def test_setup_without_token_shows_url(tmp_path, monkeypatch):
 
 
 def test_setup_with_token_env(tmp_path, monkeypatch):
+    _fake_client(monkeypatch)
     monkeypatch.setenv("GITLAB_TOKEN", "glpat-x")
+    state_path = tmp_path / "graider.lock.json"
     result = run_cli(
-        [*_no_config(tmp_path), "setup", "--roster", _roster(tmp_path)],
+        [
+            *_no_config(tmp_path),
+            "setup",
+            "--roster",
+            _roster(tmp_path),
+            "--org",
+            "swe/2026",
+            "--state",
+            str(state_path),
+        ],
         env={"GITLAB_TOKEN": "glpat-x"},
         monkeypatch=monkeypatch,
     )
     assert result.exit_code == 0
-    assert "not yet implemented" in result.output or "2 students" in result.output
+    assert "Projects" in result.output
 
 
 def test_setup_self_hosted_url(tmp_path, monkeypatch):
@@ -95,6 +108,8 @@ def test_setup_self_hosted_url(tmp_path, monkeypatch):
         "setup",
         "--roster",
         _roster(tmp_path),
+        "--org",
+        "swe/2026",
     ]
     result = run_cli(args, env={}, monkeypatch=monkeypatch)
     assert result.exit_code == 1
@@ -114,7 +129,7 @@ def test_setup_dry_run_prints_groups(tmp_path, monkeypatch):
     monkeypatch.delenv("GITLAB_TOKEN", raising=False)
     result = run_cli([*_no_config(tmp_path), "--dry-run", "setup", "--roster", _roster(tmp_path)])
     assert result.exit_code == 0  # no token needed for dry run
-    assert "Roster" in result.output
+    assert "Setup preview" in result.output
     assert "a@x.edu" in result.output
 
 
@@ -133,3 +148,77 @@ def test_setup_bad_roster_reports_row(tmp_path, monkeypatch):
     result = run_cli([*_no_config(tmp_path), "--dry-run", "setup", "--roster", str(bad)])
     assert result.exit_code == 1
     assert "row 2" in result.output
+
+
+def _fake_client(monkeypatch):
+    client = MagicMock()
+    client.get_namespace_id.return_value = 100
+    client.list_group_project_paths.return_value = set()
+    client.create_project.side_effect = lambda name, ns: ProjectRef(
+        id=abs(hash(name)) % 1000,
+        name=name,
+        path_with_namespace=f"swe/{name}",
+        web_url=f"https://gl/swe/{name}",
+    )
+    client.invite_member.side_effect = lambda pid, email: InviteResult(
+        email=email, status=InviteStatus.INVITED, username=email.split("@")[0]
+    )
+    monkeypatch.setattr("graider.cli.GitLabClient", lambda *a, **k: client)
+    return client
+
+
+def test_setup_creates_projects_and_state(tmp_path, monkeypatch):
+    client = _fake_client(monkeypatch)
+    roster = tmp_path / "r.csv"
+    roster.write_text("email,group\na@x.edu,1\nb@x.edu,1\nc@x.edu,2\n")
+    state_path = tmp_path / "graider.lock.json"
+    result = run_cli(
+        [
+            *_no_config(tmp_path),
+            "setup",
+            "--roster",
+            str(roster),
+            "--org",
+            "swe/2026",
+            "--state",
+            str(state_path),
+        ],
+        env={"GITLAB_TOKEN": "glpat-x"},
+        monkeypatch=monkeypatch,
+    )
+    assert result.exit_code == 0
+    assert client.create_project.call_count == 2  # two groups
+    assert client.commit_files.call_count == 2
+    assert client.invite_member.call_count == 3  # three students
+    assert state_path.exists()
+
+
+def test_setup_is_idempotent(tmp_path, monkeypatch):
+    client = _fake_client(monkeypatch)
+    roster = tmp_path / "r.csv"
+    roster.write_text("email,group\na@x.edu,1\n")
+    state_path = tmp_path / "graider.lock.json"
+    args = [
+        *_no_config(tmp_path),
+        "setup",
+        "--roster",
+        str(roster),
+        "--org",
+        "swe/2026",
+        "--state",
+        str(state_path),
+    ]
+    run_cli(args, env={"GITLAB_TOKEN": "glpat-x"}, monkeypatch=monkeypatch)
+    client.create_project.reset_mock()
+    # second run: project already in state -> no new creation
+    run_cli(args, env={"GITLAB_TOKEN": "glpat-x"}, monkeypatch=monkeypatch)
+    client.create_project.assert_not_called()
+
+
+def test_setup_dry_run_offline(tmp_path, monkeypatch):
+    monkeypatch.delenv("GITLAB_TOKEN", raising=False)
+    roster = tmp_path / "r.csv"
+    roster.write_text("email,group\na@x.edu,1\n")
+    result = run_cli([*_no_config(tmp_path), "--dry-run", "setup", "--roster", str(roster)])
+    assert result.exit_code == 0
+    assert "dry run" in result.output.lower()

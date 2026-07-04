@@ -9,9 +9,19 @@ import typer
 
 from graider import __version__
 from graider.config import Config, require_token, resolve_config
-from graider.console import console, print_error, print_groups, print_success
+from graider.console import (
+    console,
+    print_error,
+    print_project_summary,
+    print_setup_preview,
+    print_success,
+)
 from graider.errors import GraiderError
+from graider.gitlab_client import GitLabClient
+from graider.models import MemberState, ProjectState
+from graider.names import random_name
 from graider.roster import group_students, read_roster
+from graider.state import load_state, save_state
 from graider.templates import (
     TemplateContext,
     TemplateName,
@@ -85,29 +95,104 @@ def setup(
         exists=True,
         dir_okay=False,
         readable=True,
-        help="Path to the roster CSV/XLSX (student emails + group numbers).",
+        help="Roster CSV/XLSX (student emails + group numbers).",
     ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Parse and preview without touching GitLab.",
+    org: str = typer.Option(
+        "",
+        "--org",
+        help="GitLab group/org full path (e.g. swe/2026). Required unless --dry-run.",
     ),
+    template: TemplateName = typer.Option(TemplateName.PYTHON, "--template"),
+    course: str = typer.Option("course", "--course"),
+    criteria_repo: str = typer.Option("", "--criteria-repo"),
+    criteria_path: str = typer.Option("", "--criteria-path"),
+    brief_url: str = typer.Option("", "--brief-url"),
+    name_prefix: str = typer.Option("", "--name-prefix"),
+    state_path: Path = typer.Option(Path("graider.lock.json"), "--state"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
-    """Create GitLab projects from a roster. (roster parsing only for now)"""
+    """Create a GitLab project per group and invite members."""
     config = _config(ctx)
-    dry_run = dry_run or config.dry_run  # accept the flag before or after the subcommand
-    if not dry_run:
-        require_token(config)  # fail fast before parsing on real runs
+    dry_run = dry_run or config.dry_run
 
-    students = read_roster(roster)
-    groups = group_students(students)
-    print_groups(groups)
+    groups = group_students(read_roster(roster))
+    state = load_state(state_path)
 
-    summary = f"{len(students)} students in {len(groups)} groups"
+    # --- offline preview ---------------------------------------------------
     if dry_run:
-        print_success(f"{summary} (dry run, GitLab untouched).")
-    else:
-        print_success(f"{summary} — project creation not yet implemented.")
+        taken = {p.name for p in state.projects.values()}
+        rows = []
+        for group in groups:
+            if group.number in state.projects:
+                name = state.projects[group.number].name
+            else:
+                name = random_name(taken, prefix=name_prefix)
+                taken.add(name)
+            rows.append((group.number, name, group.members))
+        print_setup_preview(rows)
+        print_success(f"{len(groups)} groups (dry run, GitLab untouched).")
+        return
+
+    # --- real run ----------------------------------------------------------
+    if not org:
+        raise GraiderError("--org is required (the GitLab group to create projects in).")
+    token = require_token(config)
+
+    client = GitLabClient(config.gitlab_url, token)
+    client.authenticate()
+    namespace_id = client.get_namespace_id(org)
+    state.gitlab_url, state.org = config.gitlab_url, org
+
+    taken = client.list_group_project_paths(org) | {p.name for p in state.projects.values()}
+
+    for group in groups:
+        if group.number in state.projects:
+            _reconcile_members(client, state.projects[group.number], group)
+        else:
+            name = random_name(taken, prefix=name_prefix)
+            taken.add(name)
+            ref = client.create_project(name, namespace_id)
+            assert ref is not None  # not dry-run here
+            context = TemplateContext(
+                project_name=name,
+                course=course,
+                criteria_repo=criteria_repo,
+                criteria_path=criteria_path,
+                brief_url=brief_url,
+            )
+            client.commit_files(ref.id, render_template(template.value, context))
+            client.protect_branch(ref.id, "main")
+            members = [
+                MemberState(**client.invite_member(ref.id, s.email).model_dump())
+                for s in group.members
+            ]
+            state.projects[group.number] = ProjectState(
+                group_number=group.number,
+                name=name,
+                project_id=ref.id,
+                web_url=ref.web_url,
+                path_with_namespace=ref.path_with_namespace,
+                template=template.value,
+                members=members,
+            )
+        save_state(state_path, state)  # incremental save = resumable
+
+    print_project_summary(state)
+    print_success(f"Set up {len(state.projects)} projects → {state_path}")
+
+
+def _reconcile_members(client, project, group) -> None:
+    """Invite roster members not already successfully added (idempotent re-run)."""
+    from graider.models import InviteStatus
+
+    recorded = {m.email: m for m in project.members}
+    for student in group.members:
+        current = recorded.get(student.email)
+        if current and current.status in (InviteStatus.INVITED, InviteStatus.ALREADY_MEMBER):
+            continue
+        result = client.invite_member(project.project_id, student.email)
+        recorded[student.email] = MemberState(**result.model_dump())
+    project.members = list(recorded.values())
 
 
 @app.command()

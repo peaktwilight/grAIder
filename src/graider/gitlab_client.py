@@ -38,6 +38,15 @@ class GitLabClient:
             raise GitLabError(f"GitLab group/org not found: {org_path!r} ({exc})") from exc
         return group.id
 
+    def list_group_project_paths(self, org_path: str) -> set[str]:
+        """Return the set of project *paths* already in the group (for collision checks)."""
+        try:
+            group = self._gl.groups.get(org_path)
+            projects = group.projects.list(get_all=True)
+        except GitlabError as exc:
+            raise GitLabError(f"Could not list projects in {org_path!r}: {exc}") from exc
+        return {p.path for p in projects}
+
     def create_project(
         self, name: str, namespace_id: int, *, visibility: str = "private"
     ) -> ProjectRef | None:
