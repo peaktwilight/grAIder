@@ -28,6 +28,7 @@ from graider.console import (
     print_setup_preview,
     print_success,
     print_usage,
+    print_warning,
 )
 from graider.criteria import (
     fetch_criteria_repo,
@@ -345,6 +346,8 @@ def review(
         refresh=force,
     )
     print_review(result)
+    for warning in result.warnings:
+        print_warning(warning)
     results_path.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
     if cache is not None and cache.last_hit:
         console.print("[dim](loaded from cache; pass --force or --no-cache to re-run)[/]")
