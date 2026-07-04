@@ -42,7 +42,12 @@ from graider.errors import GraiderError
 from graider.feedback.render import REVIEW_MARKER, issue_title, render_feedback
 from graider.gitlab_client import GitLabClient
 from graider.grading.runner import grade_project
-from graider.interview.agent import generate_interview, render_interview_md, select_topics
+from graider.interview.agent import (
+    generate_interview,
+    interview_warnings,
+    render_interview_md,
+    select_topics,
+)
 from graider.models import GradeResult, MemberState, ProjectState, ReviewResult
 from graider.names import random_name
 from graider.project_config import load_repo_config
@@ -575,6 +580,8 @@ def interview(
     out.write_text(render_interview_md(repo.resolve().name, output), encoding="utf-8")
     total = sum(len(t.questions) for t in output.topics)
     print_success(f"Wrote {total} questions across {len(topics)} topic(s) → {out}")
+    for warning in interview_warnings(repo):
+        print_warning(warning)
     if be.last_usage:
         print_usage(be.last_usage, model)
 
