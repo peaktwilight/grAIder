@@ -51,7 +51,8 @@ from graider.report.build import (
     summary_row,
     write_csv,
 )
-from graider.review.agent import DEFAULT_MODEL, head_sha, review_project, select_backend
+from graider.review.agent import DEFAULT_MODEL, review_project, select_backend
+from graider.review.cache import ReviewCache
 from graider.roster import group_students, read_roster
 from graider.state import load_state, save_state
 from graider.templates import (
@@ -295,7 +296,12 @@ def review(
     up_to: Optional[str] = typer.Option(None, "--up-to", help="Position or item id."),
     dry_run: bool = typer.Option(False, "--dry-run"),
     model: str = typer.Option(DEFAULT_MODEL, "--model", help="Claude model id."),
-    force: bool = typer.Option(False, "--force", help="Re-review even if HEAD is unchanged."),
+    force: bool = typer.Option(
+        False, "--force", help="Ignore any cached result and re-run the model."
+    ),
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="Ignore the review cache and always call the model."
+    ),
     results: Path = typer.Option(Path("review-results.json"), "--results"),
     backend: str = typer.Option(
         "auto", "--backend", help="auto | api | claude-code | openai | gemini | glm."
@@ -321,11 +327,11 @@ def review(
         return
 
     results_path = results
-    if not force and results_path.exists():
-        prior = json.loads(results_path.read_text(encoding="utf-8"))
-        if prior.get("head_sha") and prior["head_sha"] == head_sha(repo):
-            console.print("Repo unchanged since last review; use --force to re-run.")
-            return
+    cache = (
+        None
+        if no_cache
+        else ReviewCache.load(results_path.with_name(results_path.stem + ".cache.json"))
+    )
 
     be = select_backend(backend)
     result = review_project(
@@ -335,10 +341,15 @@ def review(
         cutoff=str(cutoff) if cutoff is not None else "",
         model=model,
         backend=be,
+        cache=cache,
+        refresh=force,
     )
     print_review(result)
     results_path.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    print_success(f"Reviewed {len(in_scope)} criteria → {results_path}")
+    if cache is not None and cache.last_hit:
+        console.print("[dim](loaded from cache; pass --force or --no-cache to re-run)[/]")
+    else:
+        print_success(f"Reviewed {len(in_scope)} criteria → {results_path}")
     if be.last_usage:
         print_usage(be.last_usage, model)
 
