@@ -15,8 +15,8 @@ def _review():
         cutoff="2",
         overall_summary="Solid overall.",
         criteria=[
-            CriterionVerdict(id="1", title="VCS", met=True, evidence=[], comment="clean"),
-            CriterionVerdict(id="2", title="Tests", met=False, evidence=[], comment="add more"),
+            CriterionVerdict(id="1", title="VCS", met=True, evidence=[], comment="clean"),  # type: ignore
+            CriterionVerdict(id="2", title="Tests", met=False, evidence=[], comment="add more"),  # type: ignore
         ],
     )
 
@@ -25,8 +25,8 @@ def test_render_feedback_marker_and_checklist():
     body = render_feedback(_review())
     assert body.startswith(REVIEW_MARKER)
     assert "1/2 criteria met" in body
-    assert "- [x] 1. VCS" in body
-    assert "- [ ] 2. Tests — add more" in body
+    assert "- 1. VCS: **proficient** — clean" in body
+    assert "- 2. Tests: **emerging** — add more" in body
 
 
 def test_issue_title():

@@ -20,6 +20,10 @@ CSV_COLUMNS = [
     "qlty_smells",
     "criteria_met",
     "criteria_total",
+    "count_emerging",
+    "count_developing",
+    "count_proficient",
+    "count_exemplary",
     "review_model",
 ]
 
@@ -77,12 +81,11 @@ def render_report(grade: GradeResult | None, review: ReviewResult | None, url: s
             "",
             f"**{met}/{len(review.criteria)} criteria met.** {review.overall_summary}",
             "",
-            "| ID | Criterion | Met | Comment |",
+            "| ID | Criterion | Level | Comment |",
             "| --- | --- | --- | --- |",
         ]
         for v in review.criteria:
-            mark = "✓" if v.met else "✗"
-            lines.append(f"| {v.id} | {v.title} | {mark} | {v.comment} |")
+            lines.append(f"| {v.id} | {v.title} | {v.level.value} | {v.comment} |")
         lines.append("")
         evidence = [e for v in review.criteria for e in v.evidence]
         if evidence:
@@ -95,6 +98,7 @@ def summary_row(
     grade: GradeResult | None, review: ReviewResult | None, url: str = ""
 ) -> dict[str, object]:
     name = (grade.project if grade else None) or (review.project if review else "project")
+    levels = [v.level.value for v in review.criteria] if review else []
     return {
         "project": name,
         "url": url,
@@ -106,6 +110,12 @@ def summary_row(
         "qlty_smells": grade.qlty_smells if grade else "",
         "criteria_met": sum(v.met for v in review.criteria) if review else "",
         "criteria_total": len(review.criteria) if review else "",
+        # Empty (not 0) when there is no review, so a grade-only project is not
+        # mistaken for one reviewed with zero criteria at every level.
+        "count_emerging": levels.count("emerging") if review else "",
+        "count_developing": levels.count("developing") if review else "",
+        "count_proficient": levels.count("proficient") if review else "",
+        "count_exemplary": levels.count("exemplary") if review else "",
         "review_model": review.model if review else "",
     }
 
