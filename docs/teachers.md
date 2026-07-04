@@ -119,6 +119,13 @@ graider criteria init --syllabus syllabus.pdf --out ./criteria
 
 This drafts a `./criteria/criteria.md` outlining the project brief and criteria list, and initializes `./criteria/graider-criteria.yml` with the default milestone cutoff.
 
+> [!TIP]
+> When you refine the drafted criteria (especially the `### Levels` descriptors),
+> the grAIder Agent Skill can suggest research-backed patterns for specific topics
+> — SOLO-phrased levels for algorithms, test-process and test-quality criteria,
+> reasoning-focused design/refactoring descriptors, and debugging-process
+> criteria. See the [Topic Guides](topic_guides.md) for the rationale and examples.
+
 ### Validating Criteria
 
 To ensure your criteria files are correctly formatted with sequential numeric IDs and valid cutoffs, run:

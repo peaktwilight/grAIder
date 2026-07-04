@@ -49,3 +49,46 @@ staggered criteria with AI, and export reports.
 - **CI:** the starters' qlty jobs are `allow_failure`; tests must pass. Run
   `graider criteria check` in the criteria repo's CI to catch id/order/cutoff
   mistakes early.
+
+## Topic-specific criteria guidance
+
+When helping a teacher draft criteria (e.g. after `criteria init`), lean on these
+research-backed patterns. Each criterion body can carry a `### Levels` block with
+`emerging / developing / proficient / exemplary` descriptors; grade the *quality
+of reasoning and process*, not just the artifact. See `docs/topic_guides.md` for
+sources.
+
+- **Algorithms — use the SOLO taxonomy.** It maps onto the mastery levels:
+  emerging ≈ unistructural, developing ≈ multistructural, proficient ≈
+  relational, exemplary ≈ extended abstract. Example:
+
+  ```
+  ## 3. Algorithm design
+  Chooses and justifies an appropriate algorithm/data structure.
+
+  ### Levels
+  - emerging: uses a provided algorithm without explanation
+  - developing: lists relevant options but can't compare them
+  - proficient: selects one and justifies it by complexity and constraints
+  - exemplary: assesses trade-offs and adapts the algorithm to edge/failure cases
+  ```
+
+- **Testing — assess the process and test quality, not just coverage.** Test-first
+  behaviour shows in the git history (tests change with/before the code); reward
+  meaningful assertions and negative cases. Example descriptors: emerging = tests
+  added at the end / trivial asserts; proficient = tests co-evolve with code, cover
+  the documented cases; exemplary = also covers negative/edge cases with clear
+  assertions.
+
+- **Design & refactoring — grade the reasoning.** Novices point at code, experts
+  reason about quality attributes. Descriptors should climb: names a problem →
+  explains why it hurts a quality attribute (coupling/cohesion/readability) →
+  justifies the trade-off of the fix. Anchor the discussion on qlty smell counts.
+
+- **Debugging — reward a systematic loop.** A debugging-process criterion:
+  reproducible case → hypothesis → fix → regression test. Bug-fix commits are
+  natural viva targets.
+
+- **Comprehension — predict/trace viva prompts.** Suggest
+  `graider interview --prompt "include predict/trace questions"` — cheap,
+  discriminating checks ("what does this return for input X, without running it?").

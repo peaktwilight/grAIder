@@ -8,6 +8,7 @@ theme:
 nav:
   - Home: index.md
   - Learning Science: learning_science.md
+  - Topic Guides: topic_guides.md
   - Students Manual: students.md
   - Teachers Manual: teachers.md
   - Current Implementation: current_implementation.md
