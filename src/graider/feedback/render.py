@@ -19,9 +19,8 @@ def render_feedback(review: ReviewResult) -> str:
         "",
     ]
     for v in review.criteria:
-        box = "x" if v.met else " "
-        tail = f" — {v.comment}" if v.comment and not v.met else ""
-        lines.append(f"- [{box}] {v.id}. {v.title}{tail}")
+        tail = f" — {v.comment}" if v.comment else ""
+        lines.append(f"- {v.id}. {v.title}: **{v.level.value}**{tail}")
     return "\n".join(lines)
 
 

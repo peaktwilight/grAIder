@@ -66,3 +66,23 @@ def test_load_dir_and_released(tmp_path):
     c = load_criteria_dir(tmp_path)
     assert len(c.items) == 3
     assert released_cutoff(tmp_path) == 1
+
+
+def test_parse_levels_block():
+    from graider.criteria import parse_criteria
+
+    text = (
+        "Brief.\n\n"
+        "## 1. Error handling\n"
+        "Handles bad input.\n\n"
+        "### Levels\n"
+        "- emerging: crashes\n"
+        "- developing: catches some\n"
+        "- proficient: validates all documented cases\n"
+        "- exemplary: proficient plus recovery\n"
+    )
+    crit = parse_criteria(text)
+    item = crit.items[0]
+    assert item.levels["proficient"].startswith("validates")
+    assert "### Levels" not in item.body
+    assert item.body.strip() == "Handles bad input."

@@ -25,7 +25,7 @@ def test_review_maps_output(tmp_path):
     (tmp_path / "main.py").write_text("print('hi')\n")
     output = ReviewOutput(
         overall_summary="Solid.",
-        criteria=[CriterionVerdict(id="1", title="Testing", met=True, evidence=[], comment="ok")],
+        criteria=[CriterionVerdict(id="1", title="Testing", met=True, evidence=[], comment="ok")],  # type: ignore
     )
     result = review_project(tmp_path, "brief", _items(), client=_fake_client(output), model="m")
     assert result.overall_summary == "Solid."
@@ -73,7 +73,7 @@ from graider.review.agent import (  # noqa: E402
 def test_claude_code_backend_parses_json():
     out = ReviewOutput(
         overall_summary="ok",
-        criteria=[CriterionVerdict(id="1", title="A", met=True, evidence=[], comment="c")],
+        criteria=[CriterionVerdict(id="1", title="A", met=True, evidence=[], comment="c")],  # type: ignore
     )
     backend = ClaudeCodeBackend(runner=lambda prompt, model: out.model_dump_json())
     result = backend.run("sys", "user", "opus", ReviewOutput)
@@ -267,3 +267,26 @@ def test_review_cache_persists_across_load(tmp_path):
     review_project(tmp_path, "brief", _items(), backend=backend, model="m", cache=fresh)
     assert backend.calls == 1
     assert fresh.last_hit is True
+
+
+def test_verdict_level_derives_met():
+    from graider.models import CriterionVerdict, PerformanceLevel
+
+    v = CriterionVerdict(
+        id="1", title="T", level=PerformanceLevel.PROFICIENT, evidence=[], comment=""
+    )
+    assert v.met is True
+    low = CriterionVerdict(
+        id="2", title="T", level=PerformanceLevel.DEVELOPING, evidence=[], comment=""
+    )
+    assert low.met is False
+
+
+def test_verdict_backfills_level_from_met():
+    from graider.models import CriterionVerdict, PerformanceLevel
+
+    v = CriterionVerdict(id="1", title="T", met=True, evidence=[], comment="")  # type: ignore
+    assert v.level == PerformanceLevel.PROFICIENT
+    assert v.met is True
+    # met is serialized for backward-compatible reports/CSV
+    assert v.model_dump()["met"] is True

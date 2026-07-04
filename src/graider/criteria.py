@@ -16,6 +16,31 @@ _MARKERS = {".md": "## ", ".markdown": "## ", ".adoc": "== ", ".asciidoc": "== "
 _NUM_PREFIX = re.compile(r"^\s*(\d+)[.)]\s*")
 
 
+def _split_levels(body_lines: list[str], marker: str) -> tuple[str, dict[str, str]]:
+    """Extract a `### Levels` sub-block from a criterion body.
+
+    Returns (body_without_levels, {level_name: descriptor}).
+    """
+    sub = marker[0] + marker  # "## " -> "### ", "== " -> "=== "
+    levels: dict[str, str] = {}
+    kept: list[str] = []
+    in_levels = False
+    for line in body_lines:
+        if line.startswith(sub) and line[len(sub) :].strip().lower() == "levels":
+            in_levels = True
+            continue
+        if in_levels:
+            m = re.match(r"^\s*[-*]?\s*([A-Za-z]+)\s*:\s*(.+)$", line)
+            if m:
+                levels[m.group(1).lower()] = m.group(2).strip()
+                continue
+            if line.strip() == "":
+                continue
+            in_levels = False  # any other non-blank line ends the block
+        kept.append(line)
+    return "\n".join(kept).strip(), levels
+
+
 def parse_criteria(text: str, marker: str = "## ") -> Criteria:
     lines = text.splitlines()
     brief_lines: list[str] = []
@@ -25,7 +50,7 @@ def parse_criteria(text: str, marker: str = "## ") -> Criteria:
 
     def _flush() -> None:
         if current is not None:
-            current.body = "\n".join(body).strip()
+            current.body, current.levels = _split_levels(body, marker)
             items.append(current)
 
     for line in lines:

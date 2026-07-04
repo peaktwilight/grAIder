@@ -21,9 +21,11 @@ __all__ = [
 _SYSTEM = (
     "You are a university teaching assistant. From the given syllabus, extract "
     "the topics students are graded on, in teaching order. Produce an ordered "
-    "list of grading criteria: one item per topic, each with a short title and a "
+    "list of grading criteria: one item per topic, each with a short title, a "
     "body describing what to check plus 2-3 concrete evaluation questions a "
-    "grader would ask. Also write a one-paragraph project brief."
+    "grader would ask, and a levels object with one-sentence descriptors for "
+    "emerging, developing, proficient, and exemplary performance (analytic-rubric "
+    "style, aligned to the criterion). Also write a one-paragraph project brief."
 )
 
 
@@ -66,6 +68,19 @@ def write_criteria_dir(draft: CriteriaDraft, out_dir: Path, *, force: bool = Fal
     lines = ["# Project Brief", "", draft.brief.strip(), "", "# Criteria", ""]
     for index, item in enumerate(draft.items, start=1):
         lines += [f"## {index}. {item.title.strip()}", "", item.body.strip(), ""]
+        if item.levels is not None:
+            level_lines = [
+                f"- {name}: {desc.strip()}"
+                for name, desc in (
+                    ("emerging", item.levels.emerging),
+                    ("developing", item.levels.developing),
+                    ("proficient", item.levels.proficient),
+                    ("exemplary", item.levels.exemplary),
+                )
+                if desc.strip()
+            ]
+            if level_lines:
+                lines += ["### Levels", "", *level_lines, ""]
     doc.write_text("\n".join(lines), encoding="utf-8")
     cutoff.write_text("released_up_to: 0\n", encoding="utf-8")
 
@@ -85,6 +100,14 @@ def check_criteria_dir(criteria_dir: Path) -> list[str]:
     for expected, item in enumerate(criteria.items, start=1):
         if item.order != expected:
             problems.append(f"item {item.id!r} has order {item.order}, expected {expected}")
+
+    canonical = {"emerging", "developing", "proficient", "exemplary"}
+    for item in criteria.items:
+        unknown = set(item.levels) - canonical
+        if unknown:
+            problems.append(
+                f"item {item.id!r} has unknown level(s) {sorted(unknown)}; use {sorted(canonical)}"
+            )
 
     cutoff = released_cutoff(criteria_dir)
     if cutoff is None:

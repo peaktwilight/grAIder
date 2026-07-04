@@ -52,9 +52,13 @@ _TEXT_SUFFIXES = {
 
 _SYSTEM = (
     "You are a strict but fair programming-course grader. Evaluate the student "
-    "repository against each provided criterion. For each criterion decide met "
-    "(true/false), cite concrete evidence as 'path:line — note', and keep "
-    "comments short and actionable. Judge only the criteria you are given."
+    "repository against each provided criterion. For each criterion, assign a "
+    "performance level from the scale emerging / developing / proficient / exemplary. "
+    "When a criterion provides level descriptors, match the work to them; "
+    "otherwise use the general scale (emerging = little/no evidence, developing = partial, "
+    "proficient = meets the requirement, exemplary = exceeds). Cite concrete "
+    "evidence as 'path:line — note', and keep comments short and actionable. "
+    "Judge only the criteria you are given."
 )
 
 
@@ -443,7 +447,16 @@ def _build_prompt(
         "\n# Criteria to evaluate",
     ]
     for item in in_scope:
-        parts.append(f"\n## {item.id}. {item.title}\n{item.body}")
+        item_text = f"\n## {item.id}. {item.title}\n{item.body}"
+        if item.levels:
+            level_parts = [
+                f"{name}: {item.levels[name]}"
+                for name in ("emerging", "developing", "proficient", "exemplary")
+                if name in item.levels and item.levels[name].strip()
+            ]
+            if level_parts:
+                item_text += f"\nLevels — {'; '.join(level_parts)}"
+        parts.append(item_text)
     if grade is not None:
         parts.append(
             "\n# Automated metrics\n"

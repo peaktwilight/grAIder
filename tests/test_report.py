@@ -31,10 +31,14 @@ def _review():
         cutoff="2",
         overall_summary="Good work.",
         criteria=[
-            CriterionVerdict(
-                id="1", title="VCS", met=True, evidence=["a.py:1 — ok"], comment="clean"
+            CriterionVerdict(  # type: ignore
+                id="1",
+                title="VCS",
+                met=True,  # type: ignore
+                evidence=["a.py:1 — ok"],
+                comment="clean",
             ),
-            CriterionVerdict(id="2", title="Tests", met=False, evidence=[], comment="add more"),
+            CriterionVerdict(id="2", title="Tests", met=False, evidence=[], comment="add more"),  # type: ignore
         ],
     )
 
@@ -55,9 +59,23 @@ def test_render_grade_only():
 
 
 def test_summary_row():
+    from graider.report.build import CSV_COLUMNS
+
     row = summary_row(_grade(), _review(), url="u")
     assert row["criteria_met"] == 1 and row["criteria_total"] == 2
     assert row["coverage_percent"] == 88.0
+    assert row["count_proficient"] == 1
+    assert row["count_emerging"] == 1
+    assert row["count_developing"] == 0
+    assert row["count_exemplary"] == 0
+
+    for name in ("count_emerging", "count_developing", "count_proficient", "count_exemplary"):
+        assert name in CSV_COLUMNS
+
+    # Grade-only project: level counts are blank, not 0 (not "reviewed with none").
+    grade_only = summary_row(_grade(), None)
+    for name in ("count_emerging", "count_developing", "count_proficient", "count_exemplary"):
+        assert grade_only[name] == ""
 
 
 def test_load_grades_list(tmp_path):

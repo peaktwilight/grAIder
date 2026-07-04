@@ -168,11 +168,10 @@ def print_review(result: ReviewResult) -> None:
     table = Table(title=f"Review — {result.project}")
     table.add_column("ID")
     table.add_column("Criterion")
-    table.add_column("Met")
+    table.add_column("Level")
     table.add_column("Comment")
     for verdict in result.criteria:
-        met = "[green]✓[/]" if verdict.met else "[red]✗[/]"
-        table.add_row(verdict.id, verdict.title, met, verdict.comment)
+        table.add_row(verdict.id, verdict.title, verdict.level.value, verdict.comment)
     console.print(table)
     console.print(f"\n[bold]Summary:[/] {result.overall_summary}")
 

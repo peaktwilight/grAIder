@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from enum import StrEnum
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, computed_field, field_validator, model_validator
 
 # Deliberately loose: this is a sanity check for roster typos, not RFC 5322.
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -105,11 +105,33 @@ class GradeResult(BaseModel):
     errors: list[str] = []
 
 
+class PerformanceLevel(StrEnum):
+    """Ordered analytic-rubric mastery levels (emerging is lowest)."""
+
+    EMERGING = "emerging"
+    DEVELOPING = "developing"
+    PROFICIENT = "proficient"
+    EXEMPLARY = "exemplary"
+
+
+# The scale in teaching order, and the levels that count as "met" (proficient+).
+LEVEL_ORDER: tuple[PerformanceLevel, ...] = (
+    PerformanceLevel.EMERGING,
+    PerformanceLevel.DEVELOPING,
+    PerformanceLevel.PROFICIENT,
+    PerformanceLevel.EXEMPLARY,
+)
+MET_LEVELS: frozenset[PerformanceLevel] = frozenset(
+    {PerformanceLevel.PROFICIENT, PerformanceLevel.EXEMPLARY}
+)
+
+
 class CriteriaItem(BaseModel):
     id: str  # stable, e.g. "3" or "testing"
     title: str
     body: str = ""
     order: int  # 1-based position
+    levels: dict[str, str] = {}  # optional per-level descriptors, keyed by level name
 
 
 class Criteria(BaseModel):
@@ -120,9 +142,27 @@ class Criteria(BaseModel):
 class CriterionVerdict(BaseModel):
     id: str
     title: str
-    met: bool
+    level: PerformanceLevel
     evidence: list[str]  # e.g. "src/calc.py:12 — no error handling"
     comment: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _backfill_level(cls, data: object) -> object:
+        # Back-compat: results/tests that pass a boolean `met` and no `level`
+        # map True -> proficient, False -> emerging.
+        if isinstance(data, dict) and "level" not in data and "met" in data:
+            met = data["met"]  # type: ignore
+            return {
+                **data,
+                "level": PerformanceLevel.PROFICIENT if met else PerformanceLevel.EMERGING,
+            }
+        return data
+
+    @computed_field  # serialized, so review-results.json still carries `met`
+    @property
+    def met(self) -> bool:
+        return self.level in MET_LEVELS
 
 
 class Usage(BaseModel):
@@ -150,9 +190,19 @@ class ReviewResult(BaseModel):
     criteria: list[CriterionVerdict]
 
 
+class LevelDescriptors(BaseModel):
+    """Per-level rubric descriptors drafted for one criterion."""
+
+    emerging: str = ""
+    developing: str = ""
+    proficient: str = ""
+    exemplary: str = ""
+
+
 class DraftItem(BaseModel):
     title: str
     body: str  # description + suggested evaluation questions for graders
+    levels: LevelDescriptors | None = None
 
 
 class CriteriaDraft(BaseModel):
