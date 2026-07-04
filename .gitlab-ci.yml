@@ -1,6 +1,7 @@
 stages:
   - lint
   - test
+  - starters
   - build
   - publish
   - deploy
@@ -53,6 +54,40 @@ pytest:
     reports:
       junit: junit-report.xml
     when: always
+
+# Render each starter and build+test it inside the matching language container,
+# proving the templates produce working projects across all languages.
+# uv is used to run the integration tests; uv fetches its own Python, so the
+# base image only needs the language toolchain (gradle / gcc+cmake).
+starter-python:
+  stage: starters
+  image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+  script:
+    - uv run pytest -m integration -k python -v
+  retry: 1
+
+starter-java:
+  stage: starters
+  image: gradle:8.7-jdk21
+  before_script:
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv sync --frozen
+  script:
+    - uv run pytest -m integration -k java -v
+  retry: 1
+
+starter-cpp:
+  stage: starters
+  image: gcc:13
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends curl cmake git
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv sync --frozen
+  script:
+    - uv run pytest -m integration -k cpp -v
+  retry: 1
 
 build-package:
   stage: build

@@ -53,3 +53,7 @@ root = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not integration'"
+markers = [
+    "integration: renders a starter and builds it with a real toolchain (needs uv/gradle/cmake)",
+]
