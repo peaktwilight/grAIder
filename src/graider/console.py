@@ -3,7 +3,15 @@
 from rich.console import Console
 from rich.table import Table
 
-from graider.models import GradeResult, Group, InviteResult, InviteStatus, SetupState, Student
+from graider.models import (
+    CriteriaItem,
+    GradeResult,
+    Group,
+    InviteResult,
+    InviteStatus,
+    SetupState,
+    Student,
+)
 
 console = Console()
 err_console = Console(stderr=True)
@@ -110,4 +118,17 @@ def print_grade_table(results: list[GradeResult]) -> None:
             str(r.qlty_smells),
             "; ".join(r.errors),
         )
+    console.print(table)
+
+
+def print_criteria_scope(in_scope: list[CriteriaItem], out_scope: list[CriteriaItem]) -> None:
+    table = Table(title="Criteria")
+    table.add_column("#", justify="right")
+    table.add_column("ID")
+    table.add_column("Title")
+    table.add_column("Scope")
+    for item in in_scope:
+        table.add_row(str(item.order), item.id, item.title, "[green]in scope[/]")
+    for item in out_scope:
+        table.add_row(str(item.order), item.id, item.title, "[dim]not yet evaluated[/]")
     console.print(table)

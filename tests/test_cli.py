@@ -222,3 +222,22 @@ def test_setup_dry_run_offline(tmp_path, monkeypatch):
     result = run_cli([*_no_config(tmp_path), "--dry-run", "setup", "--roster", str(roster)])
     assert result.exit_code == 0
     assert "dry run" in result.output.lower()
+
+
+def test_review_dry_run_lists_scope(tmp_path, monkeypatch):
+    monkeypatch.delenv("GITLAB_TOKEN", raising=False)
+    (tmp_path / "criteria.md").write_text("# Brief\nx\n\n## 1. A\na\n\n## 2. B\nb\n")
+    result = run_cli(
+        [
+            *_no_config(tmp_path),
+            "review",
+            "--criteria-dir",
+            str(tmp_path),
+            "--up-to",
+            "1",
+            "--dry-run",
+        ]
+    )
+    assert result.exit_code == 0
+    assert "in scope" in result.output
+    assert "not yet evaluated" in result.output

@@ -103,3 +103,15 @@ class GradeResult(BaseModel):
     tests_failed: int = 0
     coverage_percent: float | None = None
     errors: list[str] = []
+
+
+class CriteriaItem(BaseModel):
+    id: str  # stable, e.g. "3" or "testing"
+    title: str
+    body: str = ""
+    order: int  # 1-based position
+
+
+class Criteria(BaseModel):
+    brief: str = ""
+    items: list[CriteriaItem] = []

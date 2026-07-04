@@ -12,11 +12,18 @@ from graider import __version__
 from graider.config import Config, require_token, resolve_config
 from graider.console import (
     console,
+    print_criteria_scope,
     print_error,
     print_grade_table,
     print_project_summary,
     print_setup_preview,
     print_success,
+)
+from graider.criteria import (
+    fetch_criteria_repo,
+    load_criteria_dir,
+    released_cutoff,
+    split_by_cutoff,
 )
 from graider.errors import GraiderError
 from graider.gitlab_client import GitLabClient
@@ -229,9 +236,43 @@ def grade(
 
 
 @app.command()
-def review(ctx: typer.Context) -> None:
-    """Agentic AI grading against course criteria. (stub)"""
-    console.print("review: not yet implemented")
+def review(
+    ctx: typer.Context,
+    repo: Path = typer.Option(Path("."), "--repo"),
+    criteria_dir: Optional[Path] = typer.Option(None, "--criteria-dir"),
+    criteria_repo: str = typer.Option("", "--criteria-repo"),
+    criteria_path: str = typer.Option("", "--criteria-path"),
+    up_to: Optional[str] = typer.Option(None, "--up-to", help="Position or item id."),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+) -> None:
+    """Evaluate a repo against the (staggered) criteria. (loading + preview)"""
+    config = _config(ctx)
+    source = _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path)
+    criteria = load_criteria_dir(source)
+
+    cutoff: str | int | None = up_to if up_to is not None else released_cutoff(source)
+    in_scope, out_scope = split_by_cutoff(criteria.items, cutoff)
+
+    if dry_run or config.dry_run:
+        print_criteria_scope(in_scope, out_scope)
+        print_success(f"{len(in_scope)} of {len(criteria.items)} criteria in scope (dry run).")
+        return
+
+    console.print("review: AI evaluation not yet implemented (Milestone 8)")
+
+
+def _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path) -> Path:
+    if criteria_dir is not None:
+        return criteria_dir
+    if criteria_repo:
+        return fetch_criteria_repo(criteria_repo, criteria_path)
+    cfg = load_repo_config(repo)  # student mode: .graider.yml
+    if cfg is not None and cfg.criteria_repo:
+        return fetch_criteria_repo(cfg.criteria_repo, cfg.criteria_path)
+    raise GraiderError(
+        "No criteria source: pass --criteria-dir, --criteria-repo, or run in a "
+        "repo whose .graider.yml points at a criteria repo."
+    )
 
 
 @app.command()
