@@ -58,7 +58,12 @@ _SYSTEM = (
     "otherwise use the general scale (emerging = little/no evidence, developing = partial, "
     "proficient = meets the requirement, exemplary = exceeds). Cite concrete "
     "evidence as 'path:line — note', and keep comments short and actionable. "
-    "Judge only the criteria you are given."
+    "Judge only the criteria you are given. "
+    "Comments must target the task/process level: state what to improve and how to approach "
+    "it; avoid vague praise and generic filler. For every criterion below proficient, "
+    "provide exactly one concrete, actionable next_step pointing the student toward the fix "
+    "(which concept/topic to apply and where) without giving the solution code. "
+    "For criteria at proficient or exemplary, leave next_step empty."
 )
 
 

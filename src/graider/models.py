@@ -145,6 +145,7 @@ class CriterionVerdict(BaseModel):
     level: PerformanceLevel
     evidence: list[str]  # e.g. "src/calc.py:12 — no error handling"
     comment: str
+    next_step: str = ""  # feed-forward: one concrete next step for criteria below proficient
 
     @model_validator(mode="before")
     @classmethod

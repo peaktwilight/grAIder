@@ -38,7 +38,14 @@ def _review():
                 evidence=["a.py:1 — ok"],
                 comment="clean",
             ),
-            CriterionVerdict(id="2", title="Tests", met=False, evidence=[], comment="add more"),  # type: ignore
+            CriterionVerdict(  # type: ignore
+                id="2",
+                title="Tests",
+                met=False,  # type: ignore
+                evidence=[],
+                comment="add more",
+                next_step="write some tests (topic 5)",
+            ),
         ],
     )
 
@@ -96,3 +103,9 @@ def test_write_csv(tmp_path):
     rows = list(csv.DictReader(out.open()))
     assert rows[0]["project"] == "brave-otter"
     assert rows[0]["criteria_met"] == "1"
+
+
+def test_render_report_next_step():
+    md = render_report(_grade(), _review())
+    assert "### Where to next" in md
+    assert "write some tests (topic 5)" in md

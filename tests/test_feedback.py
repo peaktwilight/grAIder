@@ -16,7 +16,14 @@ def _review():
         overall_summary="Solid overall.",
         criteria=[
             CriterionVerdict(id="1", title="VCS", met=True, evidence=[], comment="clean"),  # type: ignore
-            CriterionVerdict(id="2", title="Tests", met=False, evidence=[], comment="add more"),  # type: ignore
+            CriterionVerdict(  # type: ignore
+                id="2",
+                title="Tests",
+                met=False,  # type: ignore
+                evidence=[],
+                comment="add more",
+                next_step="cover the divide-by-zero path (topic 4)",
+            ),
         ],
     )
 
@@ -27,6 +34,10 @@ def test_render_feedback_marker_and_checklist():
     assert "1/2 criteria met" in body
     assert "- 1. VCS: **proficient** — clean" in body
     assert "- 2. Tests: **emerging** — add more" in body
+    assert "### Where am I going?" in body
+    assert "### How am I going?" in body
+    assert "### Where to next?" in body
+    assert "cover the divide-by-zero path (topic 4)" in body
 
 
 def test_issue_title():
