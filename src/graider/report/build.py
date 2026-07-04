@@ -81,6 +81,12 @@ def render_report(grade: GradeResult | None, review: ReviewResult | None, url: s
             "",
             f"**{met}/{len(review.criteria)} criteria met.** {review.overall_summary}",
             "",
+        ]
+        if review.warnings:
+            lines += ["> ⚠ Possible prompt injection:", ""]
+            lines += [f"> - {w}" for w in review.warnings]
+            lines += [""]
+        lines += [
             "| ID | Criterion | Level | Comment |",
             "| --- | --- | --- | --- |",
         ]

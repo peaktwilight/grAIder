@@ -189,6 +189,7 @@ class ReviewResult(BaseModel):
     cutoff: str
     overall_summary: str
     criteria: list[CriterionVerdict]
+    warnings: list[str] = []  # teacher-facing flags, e.g. possible prompt injection
 
 
 class LevelDescriptors(BaseModel):
