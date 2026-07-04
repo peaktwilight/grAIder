@@ -15,3 +15,7 @@ class AuthError(GraiderError):
 
 class RosterError(GraiderError):
     """The roster file is missing, malformed, or has invalid rows."""
+
+
+class GitLabError(GraiderError):
+    """A GitLab API call failed or returned an unexpected result."""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from enum import StrEnum
 
 from pydantic import BaseModel, field_validator
 
@@ -43,3 +44,23 @@ class Student(BaseModel):
 class Group(BaseModel):
     number: str
     members: list[Student]
+
+
+class InviteStatus(StrEnum):
+    INVITED = "invited"
+    ALREADY_MEMBER = "already_member"
+    NO_ACCOUNT = "no_account"
+    SKIPPED = "skipped"  # dry run only
+
+
+class InviteResult(BaseModel):
+    email: str
+    status: InviteStatus
+    username: str | None = None
+
+
+class ProjectRef(BaseModel):
+    id: int
+    name: str
+    path_with_namespace: str
+    web_url: str
