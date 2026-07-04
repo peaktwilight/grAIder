@@ -15,12 +15,12 @@ def _by_path(language, **kw):
 
 
 def test_templates_list():
-    assert set(TEMPLATES) == {"python", "java", "cpp", "go"}
+    assert set(TEMPLATES) == {"python", "java", "cpp", "go", "rust"}
 
 
 def test_unknown_template_raises():
     with pytest.raises(TemplateError, match="Unknown template"):
-        render_template("rust", TemplateContext())
+        render_template("haskell", TemplateContext())
 
 
 @pytest.mark.parametrize("language", TEMPLATES)
