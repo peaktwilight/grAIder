@@ -190,6 +190,8 @@ class ReviewResult(BaseModel):
     overall_summary: str
     criteria: list[CriterionVerdict]
     warnings: list[str] = []  # teacher-facing flags, e.g. possible prompt injection
+    published: bool = False  # posted to GitLab via `review publish` (teacher-approved)
+    published_at: str = ""  # ISO timestamp of publication
 
 
 class LevelDescriptors(BaseModel):

@@ -200,17 +200,31 @@ graider review --repo /path/to/student/repo --criteria-dir ./criteria --up-to 2 
     *   `api`: Direct API calls.
     *   `claude-code`: Leverages your Claude Pro/Max subscription through the Claude Code CLI for deep code inspection.
 
-### GitLab Feedback Integration
+### Publishing Feedback (teacher approval gate)
 
-Post the generated reviews directly to GitLab to notify students:
+grAIder positions the AI as a **drafting assistant** — you remain the grader of
+record. `graider review` only writes an unpublished **draft** (`review-results.json`);
+nothing reaches students until you review and approve it with `graider review
+publish`.
 
 ```bash
-# Post feedback as a comment on an open Merge Request
-graider review --repo /path/to/repo --criteria-dir ./criteria --feedback mr --project-id "courses/swe-2026/group-1" --branch "main"
+# 1. Draft the review (nothing is posted)
+graider review --repo /path/to/repo --criteria-dir ./criteria
 
-# Post feedback as a new GitLab issue
-graider review --repo /path/to/repo --criteria-dir ./criteria --feedback issue --project-id "courses/swe-2026/group-1"
+# 2. Review the drafted feedback, then approve/edit/skip before posting
+#    Posts as a comment on an open Merge Request:
+graider review publish --feedback mr --project-id "courses/swe-2026/group-1" --branch "main"
+
+#    …or as a new GitLab issue:
+graider review publish --feedback issue --project-id "courses/swe-2026/group-1"
 ```
+
+`graider review publish` prints the rendered feedback and prompts you to
+**[a]pprove**, **[e]dit** (opens `$EDITOR`), or **[s]kip**. Pass `--yes` to
+bulk-approve once you have built trust in the drafts. The draft is marked
+`published` (with a timestamp) after posting, so a re-run won't double-post
+unless you pass `--force`. Any prompt-injection warnings are surfaced here for
+your attention before anything is published.
 
 ---
 
