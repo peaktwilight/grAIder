@@ -10,6 +10,7 @@ from graider.authoring.criteria import (
 from graider.criteria import load_criteria_dir
 from graider.errors import GraiderError
 from graider.models import CriteriaDraft, DraftItem
+from graider.review.agent import ApiBackend
 
 
 def _draft():
@@ -44,7 +45,7 @@ def test_draft_criteria_mocked(tmp_path):
     syllabus.write_text("Week 1: git. Week 2: testing.\n")
     client = MagicMock()
     client.messages.parse.return_value = MagicMock(parsed_output=_draft())
-    draft = draft_criteria(syllabus, client=client)
+    draft = draft_criteria(syllabus, backend=ApiBackend(client=client))
     assert len(draft.items) == 2
 
 
@@ -54,7 +55,7 @@ def test_draft_wraps_sdk_errors(tmp_path):
     client = MagicMock()
     client.messages.parse.side_effect = RuntimeError("401")
     with pytest.raises(GraiderError, match="Anthropic credentials"):
-        draft_criteria(syllabus, client=client)
+        draft_criteria(syllabus, backend=ApiBackend(client=client))
 
 
 def test_check_valid(tmp_path):

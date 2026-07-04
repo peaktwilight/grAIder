@@ -571,10 +571,11 @@ def criteria_init(
     syllabus: Path = typer.Option(..., "--syllabus", exists=True, dir_okay=False),
     out: Path = typer.Option(..., "--out", help="Criteria repo directory to create."),
     model: str = typer.Option(CRITERIA_MODEL, "--model"),
+    backend: str = typer.Option("auto", "--backend", help="auto | api | claude-code."),
     force: bool = typer.Option(False, "--force"),
 ) -> None:
     """Draft a staggered-eval criteria repo from a syllabus."""
-    draft = draft_criteria(syllabus, model=model)
+    draft = draft_criteria(syllabus, model=model, backend=select_backend(backend))
     write_criteria_dir(draft, out, force=force)
     print_success(f"Drafted {len(draft.items)} criteria → {out} (released_up_to: 0)")
 

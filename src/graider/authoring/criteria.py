@@ -5,13 +5,18 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
-import anthropic
-
 from graider.criteria import load_criteria_dir, released_cutoff
 from graider.errors import GraiderError
 from graider.models import CriteriaDraft
+from graider.review.agent import DEFAULT_MODEL, ModelBackend
 
-DEFAULT_MODEL = "claude-opus-4-8"
+__all__ = [
+    "DEFAULT_MODEL",
+    "ModelBackend",
+    "draft_criteria",
+    "write_criteria_dir",
+    "check_criteria_dir",
+]
 
 _SYSTEM = (
     "You are a university teaching assistant. From the given syllabus, extract "
@@ -26,29 +31,13 @@ def draft_criteria(
     syllabus: Path,
     *,
     model: str = DEFAULT_MODEL,
-    client: anthropic.Anthropic | None = None,
+    backend: ModelBackend,
 ) -> CriteriaDraft:
     if not syllabus.exists():
         raise GraiderError(f"Syllabus not found: {syllabus}")
-    client = client or anthropic.Anthropic()
     content = _syllabus_content(syllabus)
-    try:
-        response = client.messages.parse(
-            model=model,
-            max_tokens=16000,
-            system=_SYSTEM,
-            # Document/text content blocks are valid at runtime; ty is over-strict
-            # on the SDK's nested content-block TypedDict union.
-            messages=[{"role": "user", "content": content}],  # ty: ignore[invalid-argument-type]
-            output_format=CriteriaDraft,
-        )
-    except Exception as exc:
-        raise GraiderError(
-            f"Criteria drafting failed ({exc}). Check your Anthropic credentials "
-            "(set ANTHROPIC_API_KEY or run `ant auth login`)."
-        ) from exc
-    draft = response.parsed_output
-    if draft is None or not draft.items:
+    draft = backend.run(_SYSTEM, content, model, CriteriaDraft)
+    if not draft.items:
         raise GraiderError("The model returned no criteria items.")
     return draft
 
