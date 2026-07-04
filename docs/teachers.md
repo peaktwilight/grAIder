@@ -1,21 +1,202 @@
 # Teachers Manual
 
-Welcome to the Teachers Manual for grAIder.
+Welcome to the grAIder Teachers Manual. This guide walks you through the entire lifecycle of managing a course with grAIder—from course initialization and criteria drafting, to repository setup, bulk grading, AI review, and final report generation.
 
-grAIder simplifies the administrative overhead of dealing with hundreds of student repositories and grading complex software engineering projects.
+## 1. Setup and Global Configuration
 
-## Setup and Config
+grAIder requires access to GitLab to create repositories, commit starter templates, and invite students. Configure your credentials once globally using environment variables or a configuration file.
 
-grAIder uses the `~/.config/graider/config.toml` for defaults or accepts environment variables:
-- `GITLAB_URL` (default: `https://gitlab.com`)
-- `GITLAB_TOKEN` (your personal access token with `api` scope)
+### Environment Variables
 
-## Core Commands
+Set these variables in your shell profile:
 
-- **`graider setup`**: (Coming Soon) Set up the GitLab environment based on a student roster (CSV/JSON), creating repositories and setting correct permissions.
-- **`graider grade`**: (Coming Soon) Run static analysis like `qlty`, `pytest`, and coverage tools across student projects.
-- **`graider review`**: (Coming Soon) Use agentic AI against the course criteria to automatically evaluate the project designs and code.
-- **`graider report`**: (Coming Soon) Aggregate the metrics and AI feedback into a digestible report for final grading.
+```bash
+export GITLAB_URL="https://gitlab.example.edu"  # Defaults to https://gitlab.com
+export GITLAB_TOKEN="glpat-YOUR_PERSONAL_ACCESS_TOKEN"  # Requires 'api' scope
+```
 
-## Test Data
-You can test the current test suite locally against the swegl-fs26 projects which are symlinked under `tests/fixtures/student_projects`.
+### Global Configuration File
+
+Alternatively, create a file at `~/.config/graider/config.toml`:
+
+```toml
+gitlab_url = "https://gitlab.example.edu"
+token = "glpat-YOUR_PERSONAL_ACCESS_TOKEN"
+```
+
+---
+
+## 2. Project Configuration & Multi-Class Support
+
+For each course, initialize a course-specific context directory. grAIder uses a `graider.toml` file in your current working directory to store project defaults.
+
+### Initialize Project
+
+Run the following to scaffold a default `graider.toml`:
+
+```bash
+graider init --org "courses/swe-2026" --course "swe-2026" --template python
+```
+
+This creates a `graider.toml` in your working directory:
+
+```toml
+gitlab_url = "https://gitlab.example.edu"
+org = "courses/swe-2026"
+template = "python"
+course = "swe-2026"
+roster = "students.csv"
+state = "graider.lock.json"
+
+[criteria]
+repo = ""
+path = ""
+```
+
+### Multi-Class Support
+
+If you manage multiple classes under the same course, you can define class-specific overrides in `graider.toml`:
+
+```toml
+gitlab_url = "https://gitlab.com"
+template = "python"
+course = "swe-2026"
+
+[class.class-a]
+org = "courses/swe-2026/class-a"
+roster = "roster-class-a.csv"
+
+[class.class-b]
+org = "courses/swe-2026/class-b"
+roster = "roster-class-b.csv"
+```
+
+To run commands for a specific class, pass the `--class` flag:
+
+```bash
+graider --class class-a setup
+```
+
+---
+
+## 3. Designing and Validating Criteria
+
+grAIder uses Markdown-based files to define milestone criteria for staggered AI evaluation.
+
+### Drafting Criteria
+
+You can draft structured criteria from your course syllabus using Claude:
+
+```bash
+graider criteria init --syllabus syllabus.pdf --out ./criteria
+```
+
+This drafts a `./criteria/criteria.md` outlining the project brief and criteria list, and initializes `./criteria/graider-criteria.yml` with the default milestone cutoff.
+
+### Validating Criteria
+
+To ensure your criteria files are correctly formatted with sequential numeric IDs and valid cutoffs, run:
+
+```bash
+graider criteria check ./criteria
+```
+
+---
+
+## 4. Provisioning Student Repositories
+
+Once your `graider.toml` and student roster are prepared, you can create repositories on GitLab. The student roster file (e.g., `students.csv`) should map student emails to group numbers:
+
+```csv
+email,group
+student1@uni.edu,1
+student2@uni.edu,1
+student3@uni.edu,2
+```
+
+### Offline Preview (Dry Run)
+
+Before modifying GitLab, preview the repository structure and group assignments:
+
+```bash
+graider setup --dry-run
+```
+
+This parses the roster and prints a table of the groups, generated project names, and members.
+
+### Real Execution
+
+To provision the actual repositories:
+
+```bash
+graider setup
+```
+
+For each group, grAIder:
+
+1.  Creates a private repository in the configured organization path.
+2.  Renders the chosen starter template (`python`, `java`, or `cpp`) and commits the files to the repository.
+3.  Protects the `main` branch.
+4.  Invites the group students to the repository.
+5.  Stores the created resources in `graider.lock.json`.
+
+> [!NOTE]
+> The `setup` command is idempotent and resumable. If it is interrupted, running it again will resume from the last created project stored in the `graider.lock.json` state file.
+
+---
+
+## 5. Grading the Workspace
+
+To grade student submissions locally (e.g., after checking them out into a local directory structure):
+
+Ensure each repository has a `.graider.yml` configuration (which is automatically generated and committed during `setup`), then run:
+
+```bash
+graider grade --workspace /path/to/student/repos --results grade-results.json
+```
+
+This runs the code quality checker, unit tests, and coverage metrics over every subdirectory under `/path/to/student/repos` that contains a `.graider.yml`. It saves the unified findings to `grade-results.json`.
+
+---
+
+## 6. Running Staggered AI Reviews
+
+Evaluate codebase design and features against milestones using Claude.
+
+### Run AI Review
+
+```bash
+graider review --repo /path/to/student/repo --criteria-dir ./criteria --up-to 2 --results review-results.json
+```
+
+*   `--up-to 2`: Limits the AI review to criteria items up to index `2` (either numeric index or criteria ID). If omitted, grAIder checks the `released_up_to` value defined in `./criteria/graider-criteria.yml`.
+*   `--backend <auto|api|claude-code>`: Selects how to contact the model.
+    *   `api`: Direct API calls.
+    *   `claude-code`: Leverages your Claude Pro/Max subscription through the Claude Code CLI for deep code inspection.
+
+### GitLab Feedback Integration
+
+Post the generated reviews directly to GitLab to notify students:
+
+```bash
+# Post feedback as a comment on an open Merge Request
+graider review --repo /path/to/repo --criteria-dir ./criteria --feedback mr --project-id "courses/swe-2026/group-1" --branch "main"
+
+# Post feedback as a new GitLab issue
+graider review --repo /path/to/repo --criteria-dir ./criteria --feedback issue --project-id "courses/swe-2026/group-1"
+```
+
+---
+
+## 7. Generating Reports
+
+Finally, merge functional grades and AI reviews into clean reports for grading.
+
+```bash
+graider report --workspace /path/to/student/repos --grade grade-results.json --review review-results.json --out-dir ./reports
+```
+
+This merges the data and generates:
+
+1.  **Markdown Reports**: Individual files (e.g., `./reports/group-name.md`) summarizing grade metrics and specific AI review verdicts for each group.
+2.  **Summary CSV**: A `./reports/summary.csv` file mapping out all projects, tests passed/failed, coverage percent, and criteria met for a quick upload to your learning management system.

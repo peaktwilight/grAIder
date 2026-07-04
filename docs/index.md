@@ -1,9 +1,17 @@
 # Welcome to grAIder
 
-grAIder is a tool designed to setup and evaluate GitLab coursework projects efficiently, powered by AI.
+grAIder is an AI-powered coursework management and automated evaluation system designed for GitLab. It helps teachers streamline course configuration, repository provisioning, student invitation, testing, code quality checks, and staggered AI reviews. It also allows students to run self-assessment grading and AI feedback locally in their repositories before submission.
+
+## Core Features
+
+*   **Automated GitLab Provisioning**: Automatically generate repositories, push boilerplate code, configure branch protections, and invite students from a roster.
+*   **Unified Grading**: Execute code quality checks, run test suites, and measure test coverage under one unified CLI command.
+*   **Staggered AI Reviews**: Grade coursework incrementally against milestone criteria using Claude (API or Claude Code CLI), with reviews pushed directly to GitLab Merge Requests or Issues.
+*   **Consolidated Reporting**: Merge functional metrics and AI reviews into clean Markdown reports per student group alongside a central grading CSV.
+*   **Student Self-Assessment**: Enable students to run the exact same quality, test, and AI review checks locally before submitting.
 
 ## Quick Links
 
-- [Students Manual](students.md) - How to use grAIder as a student.
-- [Teachers Manual](teachers.md) - How to use grAIder as a teacher or teaching assistant.
-- [Current Implementation Details](current_implementation.md) - Details on what is currently implemented in grAIder.
+*   [Teachers Manual](teachers.md) — Complete walkthrough from project setup to final grading and reporting.
+*   [Students Manual](students.md) — Local grading, self-reviews, and grAIder Agent Skill setup for Claude Code.
+*   [Current Implementation Details](current_implementation.md) — Technical details of the implemented features, templates, and integrations.

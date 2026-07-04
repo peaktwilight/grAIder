@@ -1,66 +1,68 @@
 # Current Implementation
 
-As of the current version, grAIder implements the following components:
+grAIder is a fully featured CLI tool. This page outlines the currently implemented components, commands, configuration rules, and testing tools.
 
 ## Command Line Interface (CLI)
-Built on Typer, `graider` serves as the entrypoint. 
-- The `setup` subcommand accepts a `--roster` spreadsheet option and performs roster parsing, validation, and group aggregation. In `--dry-run` mode, it prints a Rich table of the groups and members.
-- The `template` command group has subcommands `list` (lists available templates: `python`, `java`, `cpp`) and `render` (offline rendering of templates with placeholder substitution to a local directory).
-- The `grade`, `review`, and `report` subcommands remain as stubs.
+
+Built on Typer, `graider` exposes several subcommands and tool groups:
+
+### Core Commands
+
+*   **`graider init`**: Scaffolds a `graider.toml` configuration file in the current directory, capturing the course context (default GitLab organization, templates, course metadata, roster paths, and criteria).
+*   **`graider setup`**: Reads `graider.toml` (and optional class configurations via `--class`) to provision GitLab projects for student groups found in a roster file. For each group:
+    *   Creates a private repository.
+    *   Pushes the selected starter template (`python`, `java`, or `cpp`).
+    *   Protects the `main` branch.
+    *   Invites group members with their respective roles.
+    *   Supports running with `--dry-run` to preview the groups and names locally without modifying GitLab.
+*   **`graider grade`**: Runs code quality checkers, unit tests, and coverage tools on student repositories.
+    *   Uses `--repo` (default: `.`) to grade a single repository (student self-assessment).
+    *   Uses `--workspace <dir>` to automatically find and grade all subdirectories containing a `.graider.yml` configuration (teacher grading).
+    *   Saves outputs to `grade-results.json`.
+*   **`graider review`**: Uses Claude to perform an AI review of the codebase against specific, staggered criteria.
+    *   Accepts `--criteria-dir` (or fetches criteria from GitLab using `--criteria-repo` and `--criteria-path`).
+    *   Uses `--up-to <cutoff>` to evaluate only criteria up to a certain milestone (represented by position or item ID), falling back to the `released_up_to` value in the criteria directory's `graider-criteria.yml`.
+    *   Supports `--backend auto|api|claude-code` where `claude-code` relies on a Claude Pro/Max subscription via the Claude Code CLI.
+    *   Enables automated feedback posting back to GitLab via `--feedback mr|issue` (posting directly as a Merge Request note or an Issue).
+*   **`graider report`**: Merges functional grading (`grade-results.json`) and AI reviews (`review-results.json`) into digestible per-project Markdown reports and generates a consolidated `summary.csv` for course-wide grading.
+
+### Auxiliary Commands
+
+*   **`graider criteria init --syllabus FILE --out DIR`**: Automatically drafts structured grading criteria from a syllabus file using Claude.
+*   **`graider criteria check DIR`**: Validates a criteria directory (checks for correct IDs, numeric order, and valid cutoffs).
+*   **`graider template list`**: Lists available starter templates (`python`, `java`, `cpp`).
+*   **`graider template render`**: Performs offline rendering of a starter template with placeholder substitution (`{{project_name}}`, `{{course}}`, etc.) to a local directory.
+*   **`graider skills install`**: Installs the grAIder Agent Skill into `~/.claude/skills` (or a project directory via `--project`) so that the Claude Code CLI can automatically invoke and run grAIder.
 
 ## Configuration Resolution
-Configuration logic in `config.py` correctly parses and merges arguments from:
-1. Command Line Arguments (`--gitlab-url`, `--token`)
-2. Environment Variables (`GITLAB_URL`, `GITLAB_TOKEN`)
-3. Global TOML configuration file (`~/.config/graider/config.toml`)
 
-## Shared Domain Models
-Pydantic models in `models.py` define the core structure of the domain data, including:
-- `Student` (with strict email, non-empty group, and clean name validation).
-- `Group` (aggregating students).
-- `InviteStatus`, `InviteResult`, `ProjectRef`, and `RenderedFile`.
+grAIder resolves settings by merging values from multiple sources in the following precedence order:
+
+1.  **Command Line Flags**: E.g., `--gitlab-url`, `--token`, `--class`, `--dry-run`.
+2.  **Environment Variables**: `GITLAB_URL`, `GITLAB_TOKEN`.
+3.  **Local Context TOML**: `graider.toml` located in the current working directory.
+4.  **Global TOML**: Config file located at `~/.config/graider/config.toml`.
 
 ## Roster Parsing
-Implemented in `roster.py`:
-- Parses CSV (`.csv`) and Excel (`.xlsx`, `.xlsm`) rosters.
-- Normalizes and matches header aliases (e.g. `E-Mail`/`Mail`, `Group`/`Team`).
-- Identifies and aggregates duplicate students, invalid emails, and empty group fields, reporting all errors prefixed with the spreadsheet row number.
+
+grAIder parses rosters in CSV (`.csv`) and Excel (`.xlsx`, `.xlsm`) formats. It normalizes headers (matching e.g., `E-Mail`/`Mail` or `Group`/`Team`), aggregates members by group, validates emails, and reports parsing issues annotated with row numbers.
 
 ## GitLab Client Wrapper
-Implemented in `gitlab_client.py`:
-- Wraps `python-gitlab` with automatic rate-limit handling and retries for transient errors.
-- Exposes `authenticate`, `get_namespace_id`, `create_project`, `find_user_by_email` (case-insensitive public email matching), `invite_member` (returns `invited`, `already_member`, or `no_account`), `protect_branch`, and `commit_files` (pushing templates via the commit API).
-- Supports fully offline, tokenless `--dry-run` execution.
+
+A wrapper around `python-gitlab` handles:
+
+*   Authentication and namespace discovery.
+*   Repository creation, file commit (template rendering), branch protection, and member invitations.
+*   Case-insensitive public email matching to locate GitLab users.
+*   Automatic rate-limit handling and retries for transient HTTP errors.
+*   Fully offline execution when `--dry-run` is active.
 
 ## Starter Templates
-- Bundled starter configurations for `python` (uv, pytest, ruff), `java` (gradle, junit 5), and `cpp` (cmake, Catch2) under `src/graider/templates/` using a `.tmpl` + `dot_` storage scheme to prevent interference with outer project tools.
-- Includes a template engine that replaces `{{placeholder}}` values (e.g., `{{project_name}}`, `{{course}}`) and generates student repositories with ready-to-use CI pipelines.
 
-## Test Framework
-A fully mocked unit test suite (59 cases):
-- `pytest` runs client, CLI, config, roster, and template suites with no network access.
-- `ruff` (linter and formatter) and `ty` (type checker) checks run cleanly.
+Boilerplate configurations for various language toolchains:
 
-### Cross-language integration tests
-`tests/integration/test_starters.py` renders each starter and actually builds and
-tests it with the real toolchain (python: `uv sync` + ruff + pytest; java:
-`gradle test`; cpp: `cmake` + `ctest` with a fetched Catch2). These carry the
-`integration` marker and are **deselected by default**, so a plain
-`uv run pytest` stays fast and offline. Run them explicitly with:
+*   **`python`**: Powered by `uv`, `pytest`, and `ruff`.
+*   **`java`**: Powered by Gradle and JUnit 5.
+*   **`cpp`**: Powered by CMake and Catch2.
 
-- `uv run pytest -m integration` — uses the toolchains installed on the host
-  (each test skips if its toolchain is missing), or
-- `scripts/check-starters.sh` — renders and builds every starter inside its CI
-  Docker image, so only Docker is required on the host.
-
-## Continuous Integration
-`.gitlab-ci.yml` runs on merge requests, the default branch, and tags:
-- **lint** — `ruff check` (as a code-quality report), `ruff format --check`, `ty`.
-- **test** — unit `pytest` with a JUnit report.
-- **starters** — `starter-python`, `starter-java`, and `starter-cpp` jobs each
-  render and build the corresponding starter inside the matching language
-  container (`uv` image, `gradle:8.7-jdk21`, `gcc:13`), proving the templates
-  produce working projects across all languages.
-- **build / publish** — `uv build`, and publish to the GitLab PyPI registry on
-  `vX.Y.Z` tags.
-- **deploy** — build and publish this documentation site via GitLab Pages.
+Templates are stored using `.tmpl` + `dot_` storage schemes in the source tree to prevent conflicts, and dynamically render configuration files (e.g., `.gitlab-ci.yml`, `.graider.yml`).
