@@ -1,3 +1,4 @@
+import json
 import sys
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
@@ -5,7 +6,14 @@ from unittest.mock import MagicMock
 
 from graider import __version__
 from graider.cli import run
-from graider.models import InviteResult, InviteStatus, ProjectRef
+from graider.models import (
+    CriterionVerdict,
+    InviteResult,
+    InviteStatus,
+    PerformanceLevel,
+    ProjectRef,
+    ReviewResult,
+)
 
 
 def _no_config(tmp_path):
@@ -292,3 +300,73 @@ def test_init_scaffolds_toml(tmp_path, monkeypatch):
     # re-run without --force errors
     result2 = run_cli([*_no_config(tmp_path), "init"])
     assert result2.exit_code == 1
+
+
+def _draft_review(tmp_path, published=False):
+    path = tmp_path / "review-results.json"
+    result = ReviewResult(
+        project="brave-otter",
+        head_sha="abc",
+        model="m",
+        cutoff="2",
+        overall_summary="Solid.",
+        criteria=[
+            CriterionVerdict(
+                id="1", title="Tests", level=PerformanceLevel.EMERGING, evidence=[], comment="thin"
+            )
+        ],
+        published=published,
+        published_at="2026-07-04T00:00:00+00:00" if published else "",
+    )
+    path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
+    return path
+
+
+def test_review_publish_posts_and_marks_published(tmp_path, monkeypatch):
+    path = _draft_review(tmp_path)
+    client = MagicMock()
+    monkeypatch.setattr("graider.cli.GitLabClient", lambda *a, **k: client)
+    result = run_cli(
+        [
+            *_no_config(tmp_path),
+            "review",
+            "publish",
+            "--yes",
+            "--feedback",
+            "issue",
+            "--project-id",
+            "grp/1",
+            "--results",
+            str(path),
+        ],
+        env={"GITLAB_TOKEN": "glpat-x"},
+        monkeypatch=monkeypatch,
+    )
+    assert result.exit_code == 0
+    client.upsert_issue.assert_called_once()
+    assert json.loads(path.read_text())["published"] is True
+
+
+def test_review_publish_skips_when_already_published(tmp_path, monkeypatch):
+    path = _draft_review(tmp_path, published=True)
+    client = MagicMock()
+    monkeypatch.setattr("graider.cli.GitLabClient", lambda *a, **k: client)
+    result = run_cli(
+        [
+            *_no_config(tmp_path),
+            "review",
+            "publish",
+            "--yes",
+            "--feedback",
+            "issue",
+            "--project-id",
+            "grp/1",
+            "--results",
+            str(path),
+        ],
+        env={"GITLAB_TOKEN": "glpat-x"},
+        monkeypatch=monkeypatch,
+    )
+    assert result.exit_code == 0
+    client.upsert_issue.assert_not_called()
+    assert "Already published" in result.output

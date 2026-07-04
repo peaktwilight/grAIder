@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Optional
 
+import click
 import typer
 
 from graider import __version__
@@ -287,7 +289,14 @@ def grade(
     print_success(f"Graded {len(graded)} project(s) → {results}")
 
 
-@app.command()
+review_app = typer.Typer(
+    help="Draft an AI review (default) and, after teacher approval, publish it.",
+    invoke_without_command=True,
+)
+app.add_typer(review_app, name="review")
+
+
+@review_app.callback(invoke_without_command=True)
 def review(
     ctx: typer.Context,
     repo: Path = typer.Option(Path("."), "--repo"),
@@ -307,14 +316,14 @@ def review(
     backend: str = typer.Option(
         "auto", "--backend", help="auto | api | claude-code | openai | gemini | glm."
     ),
-    feedback: str = typer.Option(
-        "none", "--feedback", help="Post the review to GitLab: none | mr | issue."
-    ),
-    project_id: str = typer.Option("", "--project-id", help="GitLab project id/path for feedback."),
-    mr_iid: int = typer.Option(0, "--mr-iid", help="Merge request iid (for --feedback mr)."),
-    branch: str = typer.Option("", "--branch", help="Source branch to find the open MR."),
 ) -> None:
-    """Evaluate a repo against the (staggered) criteria. (loading + preview)"""
+    """Draft a review of a repo against the (staggered) criteria.
+
+    Writes review-results.json as an unpublished DRAFT. Nothing reaches students
+    until a teacher runs `graider review publish`.
+    """
+    if ctx.invoked_subcommand is not None:
+        return  # a subcommand (e.g. `publish`) is handling this invocation
     config = _config(ctx)
     source = _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path)
     criteria = load_criteria_dir(source)
@@ -352,12 +361,55 @@ def review(
     if cache is not None and cache.last_hit:
         console.print("[dim](loaded from cache; pass --force or --no-cache to re-run)[/]")
     else:
-        print_success(f"Reviewed {len(in_scope)} criteria → {results_path}")
+        print_success(f"Drafted review of {len(in_scope)} criteria → {results_path}")
     if be.last_usage:
         print_usage(be.last_usage, model)
+    console.print("[dim]Review it, then run `graider review publish` to post to GitLab.[/]")
 
-    if feedback != "none":
-        _post_feedback(config, result, feedback, project_id, mr_iid, branch)
+
+@review_app.command("publish")
+def review_publish(
+    ctx: typer.Context,
+    results: Path = typer.Option(Path("review-results.json"), "--results"),
+    feedback: str = typer.Option("mr", "--feedback", help="Post as: mr | issue."),
+    project_id: str = typer.Option("", "--project-id", help="GitLab project id/path."),
+    mr_iid: int = typer.Option(0, "--mr-iid", help="Merge request iid (for --feedback mr)."),
+    branch: str = typer.Option("", "--branch", help="Source branch to find the open MR."),
+    yes: bool = typer.Option(False, "--yes", help="Approve and post without prompting."),
+    force: bool = typer.Option(False, "--force", help="Re-post even if already published."),
+) -> None:
+    """Review the drafted feedback and, once a teacher approves, post it to GitLab.
+
+    The teacher is the grader of record: the AI only drafts. Approve as shown,
+    edit in $EDITOR, or skip — nothing is posted until you approve.
+    """
+    config = _config(ctx)
+    if not results.exists():
+        raise GraiderError(f"No draft found at {results}; run `graider review` first.")
+    result = ReviewResult.model_validate_json(results.read_text(encoding="utf-8"))
+    if result.published and not force:
+        print_warning(f"Already published at {result.published_at}; pass --force to re-post.")
+        return
+
+    body = render_feedback(result)
+    console.print(body)
+    for warning in result.warnings:
+        print_warning(warning)
+
+    if not yes:
+        choice = typer.prompt("Approve and post? [a]pprove / [e]dit / [s]kip", default="s")
+        if choice[:1].lower() == "e":
+            edited = click.edit(body)
+            if edited is not None:
+                body = edited
+        elif choice[:1].lower() != "a":
+            print_warning("Skipped; nothing posted.")
+            return
+
+    _post_feedback(config, result, body, feedback, project_id, mr_iid, branch)
+    result.published = True
+    result.published_at = datetime.now(UTC).isoformat()
+    results.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
 
 
 def _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path) -> Path:
@@ -377,19 +429,19 @@ def _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path) -> P
 def _post_feedback(
     config: Config,
     result: ReviewResult,
+    body: str,
     feedback: str,
     project_id: str,
     mr_iid: int,
     branch: str,
 ) -> None:
-    """Post the review to a GitLab MR note (E3) or issue (E4)."""
+    """Post the (teacher-approved) feedback body to a GitLab MR note or issue."""
     if feedback not in ("mr", "issue"):
-        raise GraiderError(f"Unknown --feedback {feedback!r}; use none | mr | issue.")
+        raise GraiderError(f"Unknown --feedback {feedback!r}; use mr | issue.")
     if not project_id:
         raise GraiderError("--feedback needs --project-id (the GitLab project id or path).")
     token = require_token(config)
     client = GitLabClient(config.gitlab_url, token, dry_run=config.dry_run)
-    body = render_feedback(result)
     if feedback == "issue":
         client.upsert_issue(project_id, issue_title(result), body, REVIEW_MARKER)
         print_success(f"Posted review as an issue on {project_id}.")
