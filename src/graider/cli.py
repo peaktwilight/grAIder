@@ -297,7 +297,7 @@ def review(
     force: bool = typer.Option(False, "--force", help="Re-review even if HEAD is unchanged."),
     results: Path = typer.Option(Path("review-results.json"), "--results"),
     backend: str = typer.Option(
-        "auto", "--backend", help="Model backend: auto | api | claude-code."
+        "auto", "--backend", help="auto | api | claude-code | openai | gemini | glm."
     ),
     feedback: str = typer.Option(
         "none", "--feedback", help="Post the review to GitLab: none | mr | issue."
@@ -397,7 +397,9 @@ def interview(
     per_topic: int = typer.Option(3, "--per-topic", help="Questions per topic."),
     out: Path = typer.Option(Path("interview.md"), "--out"),
     model: str = typer.Option(DEFAULT_MODEL, "--model"),
-    backend: str = typer.Option("auto", "--backend", help="auto | api | claude-code."),
+    backend: str = typer.Option(
+        "auto", "--backend", help="auto | api | claude-code | openai | gemini | glm."
+    ),
     dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
     """Generate viva questions probing a student's understanding of their project."""
@@ -571,7 +573,9 @@ def criteria_init(
     syllabus: Path = typer.Option(..., "--syllabus", exists=True, dir_okay=False),
     out: Path = typer.Option(..., "--out", help="Criteria repo directory to create."),
     model: str = typer.Option(CRITERIA_MODEL, "--model"),
-    backend: str = typer.Option("auto", "--backend", help="auto | api | claude-code."),
+    backend: str = typer.Option(
+        "auto", "--backend", help="auto | api | claude-code | openai | gemini | glm."
+    ),
     force: bool = typer.Option(False, "--force"),
 ) -> None:
     """Draft a staggered-eval criteria repo from a syllabus."""

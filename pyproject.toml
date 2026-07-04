@@ -14,6 +14,10 @@ dependencies = [
     "anthropic>=0.116.0",
 ]
 
+[project.optional-dependencies]
+openai = ["openai>=1.30"]
+google = ["google-genai>=0.3"]
+
 [project.scripts]
 graider = "graider.cli:run"
 
