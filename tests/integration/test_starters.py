@@ -66,3 +66,10 @@ def test_cpp_starter(tmp_path: Path) -> None:
     _run(["cmake", "-B", "build"], out)
     _run(["cmake", "--build", "build"], out)
     _run(["ctest", "--test-dir", "build", "--output-on-failure"], out)
+
+
+@pytest.mark.skipif(not _have("go"), reason="go not installed")
+def test_go_starter(tmp_path: Path) -> None:
+    out = _render(tmp_path, "go")
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    _run(["go", "test", "./..."], out, env=env)

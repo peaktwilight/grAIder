@@ -89,6 +89,17 @@ starter-cpp:
     - uv run pytest -m integration -k cpp -v
   retry: 1
 
+starter-go:
+  stage: starters
+  image: golang:1.22
+  before_script:
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv sync --frozen
+  script:
+    - uv run pytest -m integration -k go -v
+  retry: 1
+
 build-package:
   stage: build
   script:

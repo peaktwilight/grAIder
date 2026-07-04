@@ -1,0 +1,17 @@
+stages: [test, quality]
+
+test:
+  image: golang:1.22
+  stage: test
+  script:
+    - go vet ./...
+    - go test ./...
+
+quality:
+  image: golang:1.22
+  stage: quality
+  script:
+    - curl https://qlty.sh | sh
+    - export PATH="$HOME/.qlty/bin:$PATH"
+    - qlty check --all --no-fail
+  allow_failure: true
