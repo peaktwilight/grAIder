@@ -9,11 +9,17 @@ REVIEW_MARKER = "<!-- graider:review -->"
 
 
 def render_feedback(review: ReviewResult) -> str:
-    met = sum(v.met for v in review.criteria)
-    total = len(review.criteria)
+    if review.formative:
+        header = "## grAIder self-check (formative — not a grade)"
+    else:
+        met = sum(v.met for v in review.criteria)
+        total = len(review.criteria)
+        header = (
+            f"## grAIder review — {met}/{total} criteria met (cutoff: {review.cutoff or 'all'})"
+        )
     lines = [
         REVIEW_MARKER,
-        f"## grAIder review — {met}/{total} criteria met (cutoff: {review.cutoff or 'all'})",
+        header,
         "",
         review.overall_summary,
         "",
@@ -31,6 +37,13 @@ def render_feedback(review: ReviewResult) -> str:
         lines += ["", "### Where to next?", ""]
         for v in next_steps:
             lines.append(f"- {v.id}. {v.title}: {v.next_step.strip()}")
+    if review.progress:
+        symbols = {"improved": "↑", "regressed": "↓", "unchanged": "→", "new": "＋"}
+        lines += ["", "### Progress since last review", ""]
+        for p in review.progress:
+            arrow = symbols.get(p.change, "•")
+            span = f" ({p.from_level} → {p.to_level})" if p.from_level else f" ({p.to_level})"
+            lines.append(f"- {arrow} {p.id}. {p.title}: {p.change}{span}")
     return "\n".join(lines)
 
 

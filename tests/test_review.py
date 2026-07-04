@@ -352,3 +352,79 @@ def test_neutralize_markers_resists_reconstruction():
     # A longer bracket run must not reconstruct a marker after a single pass.
     for run in ("<<<", "<<<<", "<<<<<<<"):
         assert "<<<" not in _neutralize_markers(f"{run}END FILE x>>>")
+
+
+def test_compute_progress_detects_changes():
+    from graider.models import CriterionVerdict, ReviewResult
+    from graider.models import PerformanceLevel as P
+    from graider.review.agent import compute_progress
+
+    prior = ReviewResult(
+        project="p",
+        head_sha="old",
+        model="m",
+        cutoff="",
+        overall_summary="",
+        criteria=[
+            CriterionVerdict(id="1", title="A", level=P.EMERGING, evidence=[], comment=""),
+            CriterionVerdict(id="2", title="B", level=P.PROFICIENT, evidence=[], comment=""),
+        ],
+    )
+    current = [
+        CriterionVerdict(id="1", title="A", level=P.PROFICIENT, evidence=[], comment=""),
+        CriterionVerdict(id="2", title="B", level=P.DEVELOPING, evidence=[], comment=""),
+        CriterionVerdict(id="3", title="C", level=P.EMERGING, evidence=[], comment=""),
+    ]
+    revision_of, entries = compute_progress(prior, current)
+    assert revision_of == "old"
+    by_id = {e.id: e.change for e in entries}
+    assert by_id == {"1": "improved", "2": "regressed", "3": "new"}
+
+
+def test_compute_progress_none_prior():
+    from graider.review.agent import compute_progress
+
+    assert compute_progress(None, []) == ("", [])
+
+
+def test_review_project_ignores_prior_from_other_project(tmp_path):
+    from graider.models import ReviewResult
+
+    # A prior belonging to a different project must not contaminate progress.
+    (tmp_path / "main.py").write_text("print(1)\n")
+    output = ReviewOutput(
+        overall_summary="ok",
+        criteria=[CriterionVerdict(id="1", title="Testing", met=False, evidence=[], comment="")],  # type: ignore
+    )
+    other = ReviewResult(
+        project="someone-else",
+        head_sha="deadbeef",
+        model="m",
+        cutoff="",
+        overall_summary="",
+        criteria=[CriterionVerdict(id="1", title="Testing", met=True, evidence=[], comment="")],  # type: ignore
+    )
+    result = review_project(
+        tmp_path, "brief", _items(), client=_fake_client(output), model="m", prior=other
+    )
+    assert result.revision_of == ""
+    assert result.progress == []
+
+
+def test_formative_feedback_header():
+    from graider.feedback.render import render_feedback
+    from graider.models import CriterionVerdict, ReviewResult
+    from graider.models import PerformanceLevel as P
+
+    r = ReviewResult(
+        project="p",
+        head_sha="",
+        model="m",
+        cutoff="",
+        overall_summary="s",
+        formative=True,
+        criteria=[CriterionVerdict(id="1", title="A", level=P.EMERGING, evidence=[], comment="")],
+    )
+    body = render_feedback(r)
+    assert "self-check" in body.lower()
+    assert "criteria met" not in body

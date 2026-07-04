@@ -312,6 +312,9 @@ def review(
     no_cache: bool = typer.Option(
         False, "--no-cache", help="Ignore the review cache and always call the model."
     ),
+    formative: bool = typer.Option(
+        False, "--formative", help="Formative self-check tone (growth, not a grade)."
+    ),
     results: Path = typer.Option(Path("review-results.json"), "--results"),
     backend: str = typer.Option(
         "auto", "--backend", help="auto | api | claude-code | openai | gemini | glm."
@@ -343,6 +346,13 @@ def review(
         else ReviewCache.load(results_path.with_name(results_path.stem + ".cache.json"))
     )
 
+    prior = None
+    if results_path.exists():
+        try:
+            prior = ReviewResult.model_validate_json(results_path.read_text(encoding="utf-8"))
+        except ValueError:
+            prior = None
+
     be = select_backend(backend)
     result = review_project(
         repo,
@@ -353,6 +363,8 @@ def review(
         backend=be,
         cache=cache,
         refresh=force,
+        prior=prior,
+        formative=formative,
     )
     print_review(result)
     for warning in result.warnings:
