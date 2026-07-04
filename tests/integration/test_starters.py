@@ -73,3 +73,10 @@ def test_go_starter(tmp_path: Path) -> None:
     out = _render(tmp_path, "go")
     env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
     _run(["go", "test", "./..."], out, env=env)
+
+
+@pytest.mark.skipif(not _have("cargo"), reason="cargo not installed")
+def test_rust_starter(tmp_path: Path) -> None:
+    out = _render(tmp_path, "rust")
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    _run(["cargo", "test"], out, env=env)

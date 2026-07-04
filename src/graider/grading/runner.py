@@ -49,7 +49,13 @@ def _count_json_array(text: str) -> int:
 
 
 def _run_tests(repo_dir: Path, template: str, result: GradeResult) -> None:
-    handlers = {"python": _tests_python, "java": _tests_java, "cpp": _tests_cpp, "go": _tests_go}
+    handlers = {
+        "python": _tests_python,
+        "java": _tests_java,
+        "cpp": _tests_cpp,
+        "go": _tests_go,
+        "rust": _tests_rust,
+    }
     handler = handlers.get(template)
     if handler is None:
         result.errors.append(f"no test runner for template {template!r}")
@@ -109,6 +115,15 @@ def _tests_go(repo_dir: Path, result: GradeResult) -> None:
         result.errors.append("gotestsum not installed; skipped go tests")
         return
     _capture(["gotestsum", f"--junitfile={junit}", "--", "./..."], repo_dir)
+    _parse_junit(junit, result)
+
+
+def _tests_rust(repo_dir: Path, result: GradeResult) -> None:
+    if not shutil.which("cargo-nextest"):
+        result.errors.append("cargo-nextest not installed; skipped rust tests")
+        return
+    _capture(["cargo", "nextest", "run"], repo_dir)
+    junit = repo_dir / "target" / "nextest" / "default" / "junit.xml"
     _parse_junit(junit, result)
 
 

@@ -37,6 +37,7 @@ _TEXT_SUFFIXES = {
     ".c",
     ".cc",
     ".go",
+    ".rs",
     ".md",
     ".txt",
     ".toml",

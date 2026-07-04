@@ -1,0 +1,16 @@
+stages: [test, quality]
+
+test:
+  image: rust:1
+  stage: test
+  script:
+    - cargo test
+
+quality:
+  image: rust:1
+  stage: quality
+  script:
+    - curl https://qlty.sh | sh
+    - export PATH="$HOME/.qlty/bin:$PATH"
+    - qlty check --all --no-fail
+  allow_failure: true
