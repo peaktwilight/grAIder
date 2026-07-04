@@ -99,6 +99,11 @@ def main(
         "--config",
         help="Path to a config.toml file.",
     ),
+    class_name: Optional[str] = typer.Option(
+        None,
+        "--class",
+        help="Select a class from graider.toml [class.<name>] sections.",
+    ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
@@ -107,7 +112,11 @@ def main(
 ) -> None:
     """Resolve global config and stash it on the context."""
     ctx.obj = resolve_config(
-        token=token, gitlab_url=gitlab_url, config_path=config_path, dry_run=dry_run
+        token=token,
+        gitlab_url=gitlab_url,
+        config_path=config_path,
+        dry_run=dry_run,
+        class_name=class_name,
     )
 
 

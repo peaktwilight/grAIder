@@ -121,3 +121,48 @@ def test_project_file_resolve_path(tmp_path):
     pf = load_project_file(tmp_path / "graider.toml")
     assert pf.resolve_path(pf.roster) == tmp_path / "students.csv"
     assert pf.resolve_path("") is None
+
+
+def test_multi_class_select(tmp_path):
+    from graider.config import load_project_file
+
+    (tmp_path / "graider.toml").write_text(
+        'default_class = "swe25"\n\n'
+        '[class.swe25]\norg = "swe/2026"\nroster = "swe25/students.csv"\n\n'
+        '[class.dbs25]\norg = "dbs/2026"\n'
+    )
+    pf = load_project_file(tmp_path / "graider.toml")
+    assert pf.select("swe25").org == "swe/2026"
+    assert pf.select("dbs25").org == "dbs/2026"
+    assert pf.select(None).org == "swe/2026"  # default_class
+
+
+def test_multi_class_ambiguous_raises(tmp_path):
+    from graider.config import ConfigError, load_project_file
+
+    (tmp_path / "graider.toml").write_text('[class.a]\norg = "a/x"\n\n[class.b]\norg = "b/x"\n')
+    pf = load_project_file(tmp_path / "graider.toml")
+    with pytest.raises(ConfigError, match="Multiple classes"):
+        pf.select(None)
+
+
+def test_single_class_auto(tmp_path):
+    from graider.config import load_project_file
+
+    (tmp_path / "graider.toml").write_text('[class.only]\norg = "o/x"\n')
+    pf = load_project_file(tmp_path / "graider.toml")
+    assert pf.select(None).org == "o/x"
+
+
+def test_resolve_config_selects_class(tmp_path):
+    (tmp_path / "graider.toml").write_text(
+        'default_class = "swe25"\n[class.swe25]\ngitlab_url = "https://git.uni.edu"\n'
+    )
+    cfg = resolve_config(
+        token=None,
+        gitlab_url=None,
+        config_path=_missing(tmp_path),
+        project_start=tmp_path,
+        class_name="swe25",
+    )
+    assert cfg.gitlab_url == "https://git.uni.edu"
