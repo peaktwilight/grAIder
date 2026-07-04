@@ -55,6 +55,7 @@ def _run_tests(repo_dir: Path, template: str, result: GradeResult) -> None:
         "cpp": _tests_cpp,
         "go": _tests_go,
         "rust": _tests_rust,
+        "typescript": _tests_typescript,
     }
     handler = handlers.get(template)
     if handler is None:
@@ -124,6 +125,16 @@ def _tests_rust(repo_dir: Path, result: GradeResult) -> None:
         return
     _capture(["cargo", "nextest", "run"], repo_dir)
     junit = repo_dir / "target" / "nextest" / "default" / "junit.xml"
+    _parse_junit(junit, result)
+
+
+def _tests_typescript(repo_dir: Path, result: GradeResult) -> None:
+    junit = repo_dir / "junit.xml"
+    if not shutil.which("npm"):
+        result.errors.append("npm not installed; skipped typescript tests")
+        return
+    _capture(["npm", "install", "--silent"], repo_dir)
+    _capture(["npx", "vitest", "run", "--reporter=junit", f"--outputFile={junit}"], repo_dir)
     _parse_junit(junit, result)
 
 

@@ -17,6 +17,7 @@ class TemplateName(StrEnum):
     CPP = "cpp"
     GO = "go"
     RUST = "rust"
+    TYPESCRIPT = "typescript"
 
 
 TEMPLATES: tuple[str, ...] = tuple(t.value for t in TemplateName)

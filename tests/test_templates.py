@@ -15,7 +15,7 @@ def _by_path(language, **kw):
 
 
 def test_templates_list():
-    assert set(TEMPLATES) == {"python", "java", "cpp", "go", "rust"}
+    assert set(TEMPLATES) == {"python", "java", "cpp", "go", "rust", "typescript"}
 
 
 def test_unknown_template_raises():
