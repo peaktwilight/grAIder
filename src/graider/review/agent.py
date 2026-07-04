@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, TypeVar
 
@@ -107,36 +108,151 @@ class ClaudeCodeBackend:
                 "The claude-code backend only supports text prompts; use "
                 "--backend api for PDF syllabi."
             )
-        schema = json.dumps(output_format.model_json_schema())
-        prompt = (
-            f"{system}\n\nReturn ONLY minified JSON matching this JSON schema, "
-            f"with no prose or markdown fences:\n{schema}\n\n{user_prompt}"
+        return _structured_via_json(
+            lambda prompt: self._runner(prompt, model), system, user_prompt, output_format
         )
-        text = self._runner(prompt, model)
-        try:
-            return output_format.model_validate_json(_extract_json(text))
-        except (ValidationError, ValueError):
-            repair = (
-                "Your previous reply was not valid JSON for the schema. "
-                "Reply with ONLY the JSON object, nothing else."
+
+
+class OpenAICompatBackend:
+    """Structured output via any OpenAI-compatible chat endpoint.
+
+    Covers OpenAI, GLM (Zhipu), and other OpenAI-compatible servers; the target
+    is chosen by `base_url`. Uses JSON-mode + schema-in-prompt so it works across
+    providers that lack the native Pydantic-parse helper. `client` is injectable
+    for tests.
+    """
+
+    def __init__(
+        self, *, base_url: str | None = None, api_key: str | None = None, client=None
+    ) -> None:
+        self._base_url = base_url
+        self._api_key = api_key
+        self._client = client
+
+    @classmethod
+    def from_env(cls, provider: str) -> OpenAICompatBackend:
+        if provider == "glm":
+            return cls(
+                base_url=os.environ.get("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"),
+                api_key=os.environ.get("GLM_API_KEY") or os.environ.get("ZHIPUAI_API_KEY"),
             )
-            text = self._runner(f"{prompt}\n\n{repair}", model)
+        return cls(
+            base_url=os.environ.get("OPENAI_BASE_URL"),
+            api_key=os.environ.get("OPENAI_API_KEY"),
+        )
+
+    def _make_client(self):
+        try:
+            import openai  # ty: ignore[unresolved-import]
+        except ImportError as exc:
+            raise GraiderError(
+                "The openai package is required for this backend; install it with "
+                "`pip install graider[openai]`."
+            ) from exc
+        return openai.OpenAI(base_url=self._base_url, api_key=self._api_key)
+
+    def run(
+        self, system: str, user_prompt: str | list[dict], model: str, output_format: type[T]
+    ) -> T:
+        if not isinstance(user_prompt, str):
+            raise GraiderError(
+                "This backend only supports text prompts; use --backend api for PDF syllabi."
+            )
+        client = self._client or self._make_client()
+
+        def call(prompt: str) -> str:
             try:
-                return output_format.model_validate_json(_extract_json(text))
-            except (ValidationError, ValueError) as exc:
-                raise GraiderError(f"Claude Code returned invalid JSON: {exc}") from exc
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"},
+                )
+            except Exception as exc:
+                raise GraiderError(
+                    f"AI call failed ({exc}). Check your provider credentials "
+                    "(e.g. OPENAI_API_KEY / GLM_API_KEY) and --model."
+                ) from exc
+            return resp.choices[0].message.content or ""
+
+        return _structured_via_json(call, system, user_prompt, output_format)
+
+
+class GeminiBackend:
+    """Structured output via Google Gemini (google-genai SDK).
+
+    Uses native response_schema so Gemini returns a parsed object. `client` is
+    injectable for tests.
+    """
+
+    def __init__(self, *, api_key: str | None = None, client=None) -> None:
+        self._api_key = api_key
+        self._client = client
+
+    @classmethod
+    def from_env(cls) -> GeminiBackend:
+        return cls(api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+
+    def _make_client(self):
+        try:
+            from google import genai  # ty: ignore[unresolved-import]
+        except ImportError as exc:
+            raise GraiderError(
+                "The google-genai package is required for this backend; install it "
+                "with `pip install graider[google]`."
+            ) from exc
+        return genai.Client(api_key=self._api_key)
+
+    def run(
+        self, system: str, user_prompt: str | list[dict], model: str, output_format: type[T]
+    ) -> T:
+        if not isinstance(user_prompt, str):
+            raise GraiderError(
+                "This backend only supports text prompts; use --backend api for PDF syllabi."
+            )
+        client = self._client or self._make_client()
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=user_prompt,
+                config={
+                    "system_instruction": system,
+                    "response_mime_type": "application/json",
+                    "response_schema": output_format,
+                },
+            )
+        except Exception as exc:
+            raise GraiderError(
+                f"AI call failed ({exc}). Check your GEMINI_API_KEY and --model."
+            ) from exc
+        parsed = getattr(resp, "parsed", None)
+        if isinstance(parsed, output_format):
+            return parsed
+        try:
+            return output_format.model_validate_json(_extract_json(resp.text or ""))
+        except (ValidationError, ValueError) as exc:
+            raise GraiderError(f"Model returned invalid JSON: {exc}") from exc
 
 
 def select_backend(name: str, *, client: anthropic.Anthropic | None = None) -> ModelBackend:
-    """Pick a backend: 'api', 'claude-code', or 'auto'."""
+    """Pick a backend: api, claude-code, openai, gemini, glm, or auto."""
     if name == "api":
         return ApiBackend(client=client)
     if name == "claude-code":
         return ClaudeCodeBackend()
-    # auto: prefer the subscription CLI when present and no API key is set.
-    if shutil.which("claude") and not os.environ.get("ANTHROPIC_API_KEY"):
-        return ClaudeCodeBackend()
-    return ApiBackend(client=client)
+    if name == "openai":
+        return OpenAICompatBackend.from_env("openai")
+    if name == "glm":
+        return OpenAICompatBackend.from_env("glm")
+    if name == "gemini":
+        return GeminiBackend.from_env()
+    if name == "auto":
+        # prefer the subscription CLI when present and no API key is set.
+        if shutil.which("claude") and not os.environ.get("ANTHROPIC_API_KEY"):
+            return ClaudeCodeBackend()
+        return ApiBackend(client=client)
+    raise GraiderError(
+        f"Unknown backend {name!r}; choose api, claude-code, openai, gemini, glm, or auto."
+    )
 
 
 def _run_claude(prompt: str, model: str) -> str:
@@ -161,6 +277,35 @@ def _run_claude(prompt: str, model: str) -> str:
     if envelope.get("is_error"):
         raise GraiderError(f"Claude Code error: {envelope.get('result')}")
     return str(envelope.get("result", ""))
+
+
+def _structured_via_json[T: BaseModel](
+    call: Callable[[str], str], system: str, user_prompt: str, output_format: type[T]
+) -> T:
+    """Drive a text model to emit JSON for output_format's schema, one repair retry.
+
+    `call(prompt) -> str` sends the assembled prompt and returns the raw reply.
+    Shared by every backend that lacks native structured output (Claude Code CLI
+    and the OpenAI-compatible providers).
+    """
+    schema = json.dumps(output_format.model_json_schema())
+    prompt = (
+        f"{system}\n\nReturn ONLY minified JSON matching this JSON schema, "
+        f"with no prose or markdown fences:\n{schema}\n\n{user_prompt}"
+    )
+    text = call(prompt)
+    try:
+        return output_format.model_validate_json(_extract_json(text))
+    except (ValidationError, ValueError):
+        repair = (
+            "Your previous reply was not valid JSON for the schema. "
+            "Reply with ONLY the JSON object, nothing else."
+        )
+        text = call(f"{prompt}\n\n{repair}")
+        try:
+            return output_format.model_validate_json(_extract_json(text))
+        except (ValidationError, ValueError) as exc:
+            raise GraiderError(f"Model returned invalid JSON: {exc}") from exc
 
 
 def _extract_json(text: str) -> str:

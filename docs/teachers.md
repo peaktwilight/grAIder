@@ -34,6 +34,19 @@ need access to Claude. Choose one:
 *   **Claude Code CLI** — install the `claude` CLI and run `claude login` to bill
     against a Claude Pro/Max subscription. Selected with `--backend claude-code`.
 
+Beyond Claude, the AI commands can run on other providers via `--backend`:
+
+*   `--backend openai` — OpenAI (or any OpenAI-compatible endpoint). Set
+    `OPENAI_API_KEY`, and optionally `OPENAI_BASE_URL`. Pass the provider's
+    model id with `--model` (e.g. `--model gpt-4o`).
+*   `--backend glm` — GLM (Zhipu). Set `GLM_API_KEY`; `GLM_BASE_URL` defaults to
+    the Zhipu endpoint.
+*   `--backend gemini` — Google Gemini. Set `GEMINI_API_KEY` (or
+    `GOOGLE_API_KEY`) and pass a Gemini `--model`.
+
+Install the optional SDKs as needed: `pip install graider[openai]` or
+`pip install graider[google]`.
+
 With `--backend auto` (the default), grAIder uses the Claude Code CLI when it is
 installed and no API key is set, otherwise it falls back to the API.
 

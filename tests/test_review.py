@@ -62,6 +62,8 @@ def test_collect_files_skips_junk(tmp_path):
 from graider.review.agent import (  # noqa: E402
     ApiBackend,
     ClaudeCodeBackend,
+    GeminiBackend,
+    OpenAICompatBackend,
     _extract_json,
     select_backend,
 )
@@ -118,3 +120,49 @@ def test_select_backend_explicit():
 def test_select_backend_auto_prefers_api_with_key(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-x")
     assert isinstance(select_backend("auto"), ApiBackend)
+
+
+def _openai_client(payload: str):
+    message = MagicMock()
+    message.content = payload
+    choice = MagicMock()
+    choice.message = message
+    resp = MagicMock()
+    resp.choices = [choice]
+    client = MagicMock()
+    client.chat.completions.create.return_value = resp
+    return client
+
+
+def test_openai_backend_parses_json():
+    out = ReviewOutput(overall_summary="ok", criteria=[])
+    backend = OpenAICompatBackend(client=_openai_client(out.model_dump_json()))
+    assert backend.run("sys", "user", "gpt-x", ReviewOutput).overall_summary == "ok"
+
+
+def test_openai_backend_rejects_pdf():
+    backend = OpenAICompatBackend(client=_openai_client("{}"))
+    with pytest.raises(GraiderError, match="text prompts"):
+        backend.run("s", [{"type": "document"}], "gpt-x", ReviewOutput)
+
+
+def test_gemini_backend_returns_parsed():
+    out = ReviewOutput(overall_summary="ok", criteria=[])
+    client = MagicMock()
+    client.models.generate_content.return_value = MagicMock(parsed=out)
+    backend = GeminiBackend(client=client)
+    assert backend.run("sys", "user", "gemini-x", ReviewOutput).overall_summary == "ok"
+
+
+def test_select_backend_multi_provider(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-x")
+    monkeypatch.setenv("GLM_API_KEY", "glm-x")
+    monkeypatch.setenv("GEMINI_API_KEY", "g-x")
+    assert isinstance(select_backend("openai"), OpenAICompatBackend)
+    assert isinstance(select_backend("glm"), OpenAICompatBackend)
+    assert isinstance(select_backend("gemini"), GeminiBackend)
+
+
+def test_select_backend_unknown_raises():
+    with pytest.raises(GraiderError, match="Unknown backend"):
+        select_backend("bogus")
