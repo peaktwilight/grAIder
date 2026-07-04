@@ -1,13 +1,38 @@
 # Feature Requests
 
-The following features are planned to be implemented after the current implementation plan is completed:
+This page tracks the forward-looking roadmap. The features previously listed
+here — context-aware configuration, multi-class support, and feedback via merge
+requests or issues — have all shipped and are documented in the
+[Teachers Manual](teachers.md) and [Current Implementation](current_implementation.md).
 
-## Setup and Config
+Active proposals are tracked as issues in the project's GitLab issue tracker.
+The highlights:
 
-*   **Context-Aware Configuration**: Configuration will be stored directly within a coursework project directory. This means running the `graider` tool from inside a folder like `/home/sandro/IdeaProjects/docs-st` will automatically fetch the relevant repositories and documentation based on the current project context.
-*   **Multiple Class Support**: When teaching multiple classes simultaneously, a CLI flag will be available to explicitly select which class to operate on. If no flag is provided, the tool will default to using the first available class.
+## Multi-Provider LLM Support
 
-## Feedback Mechanisms
+Today the AI features (`criteria init`, `review`, `interview`) run on Claude,
+either through the Anthropic API or the Claude Code CLI. We want to let a course
+choose its provider — **OpenAI**, **Google Gemini**, and **GLM (Zhipu)** — via
+configuration, so schools can use whichever model they have credentials or
+budget for. GLM and other OpenAI-compatible endpoints would be reached through a
+single configurable base URL.
 
-*   **Feedback via Merge Requests**: Students will create a merge request containing their changes. The AI review and feedback will be provided directly as comments on that specific merge request.
-*   **Feedback through Issues**: For workflows where students commit directly to the `main` branch, the tool will generate feedback in the form of an issue that the students can subsequently check and address.
+As a prerequisite, the criteria-drafting code will be routed through the shared
+`ModelBackend` abstraction that `review` and `interview` already use, so every
+AI feature picks up new providers uniformly.
+
+## Cost and Token Reporting
+
+Surface token usage and an estimated cost per run so teachers grading a whole
+class can see what a review sweep costs before and after running it.
+
+## Review Caching
+
+Re-running `review` currently re-sends the whole repository every time. A
+content-hash cache would skip unchanged repositories, cutting cost and wall time
+for large classes.
+
+## More Starter Languages
+
+Starter templates cover Python, Java, and C++. JavaScript/TypeScript, Rust, and
+Go are common in coursework and are natural next additions.

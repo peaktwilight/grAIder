@@ -41,7 +41,12 @@ This command will:
 
 ## 3. Running Local AI Self-Reviews
 
-To check your implementation against the course criteria using AI, you can run a local review. 
+To check your implementation against the course criteria using AI, you can run a local review.
+
+> [!NOTE]
+> The AI review needs access to Claude. Either set `ANTHROPIC_API_KEY` in your
+> shell, or install the `claude` CLI and run `claude login` to use a Claude
+> Pro/Max subscription (`--backend claude-code`).
 
 If you have a local copy of the grading criteria folder (or your instructor has provided access to the criteria repository), run:
 
