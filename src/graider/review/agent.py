@@ -455,11 +455,24 @@ _UNTRUSTED_FILES_HEADER = (
 )
 
 
+def _neutralize_markers(text: str) -> str:
+    """Break any ``<<<`` run so file content cannot spoof the BEGIN/END delimiters.
+
+    A student file containing a literal ``<<<END FILE ...>>>`` line would
+    otherwise close its own untrusted block and smuggle text into the trusted
+    region. Inserting a zero-width space after the first bracket defeats that
+    without meaningfully changing how the code reads.
+    """
+    return text.replace("<<<", "<​<<")  # zero-width space breaks the run
+
+
 def _format_files(files: list[tuple[str, str]]) -> str:
     """Render repository files as clearly delimited untrusted-content blocks."""
     parts = [_UNTRUSTED_FILES_HEADER]
     for rel, text in files:
-        parts.append(f"\n<<<BEGIN FILE {rel}>>>\n{text}\n<<<END FILE {rel}>>>")
+        safe_rel = _neutralize_markers(rel)
+        safe_text = _neutralize_markers(text)
+        parts.append(f"\n<<<BEGIN FILE {safe_rel}>>>\n{safe_text}\n<<<END FILE {safe_rel}>>>")
     return "\n".join(parts)
 
 
@@ -472,6 +485,7 @@ _INJECTION_PATTERNS = [
     r"system\s+prompt",
     r"(mark|grade|rate|score)\s+(this|it|everything|all|each)\b.{0,30}\b(met|proficient|exemplary|excellent|passing|full|top|highest|100)",
     r"(full|top|maximum|perfect|highest)\s+(marks|score|grade|points)",
+    r"<<<\s*(begin|end)\s+file",  # attempt to spoof our untrusted-content delimiters
 ]
 
 
