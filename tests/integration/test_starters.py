@@ -9,6 +9,7 @@ offline. CI runs them per-language in the matching Docker image; locally run
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -26,8 +27,8 @@ def _render(tmp_path: Path, language: str) -> Path:
     return out
 
 
-def _run(cmd: list[str], cwd: Path) -> None:
-    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+def _run(cmd: list[str], cwd: Path, env: dict[str, str] | None = None) -> None:
+    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=env)
     if result.returncode != 0:
         raise AssertionError(
             f"$ {' '.join(cmd)}  (in {cwd})\n"
@@ -42,9 +43,15 @@ def _have(*tools: str) -> bool:
 @pytest.mark.skipif(not _have("uv"), reason="uv not installed")
 def test_python_starter(tmp_path: Path) -> None:
     out = _render(tmp_path, "python")
-    _run(["uv", "sync"], out)
-    _run(["uv", "run", "ruff", "check", "."], out)
-    _run(["uv", "run", "pytest"], out)
+    # Isolate the inner uv from the outer job's env: an inherited relative
+    # UV_CACHE_DIR (grAIder CI sets ".uv-cache") would otherwise land the cache
+    # *inside* the rendered project and get linted; a stray VIRTUAL_ENV confuses
+    # `uv run`. Point the cache outside `out` and drop VIRTUAL_ENV.
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    env["UV_CACHE_DIR"] = str(tmp_path / "uv-cache")
+    _run(["uv", "sync"], out, env=env)
+    _run(["uv", "run", "ruff", "check", "."], out, env=env)
+    _run(["uv", "run", "pytest"], out, env=env)
 
 
 @pytest.mark.skipif(not _have("gradle"), reason="gradle not installed")
