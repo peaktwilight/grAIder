@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Protocol, TypeVar
 
 import anthropic
+import yaml
 from pydantic import BaseModel, ValidationError
 
 from graider.errors import GraiderError
@@ -410,6 +411,7 @@ def review_project(
 ) -> ReviewResult:
     backend = backend or ApiBackend(client=client)
     files = _collect_files(repo_dir)
+    self_assessment = _load_self_assessment(repo_dir)
     user_prompt = _build_prompt(brief, in_scope, grade, files)
     warnings = detect_injection(files)
     system = _SYSTEM_FORMATIVE if formative else _SYSTEM
@@ -439,6 +441,7 @@ def review_project(
         revision_of=revision_of,
         progress=progress,
         formative=formative,
+        self_assessment=self_assessment,
     )
     if cache is not None:
         cache.put(key, result)
@@ -455,6 +458,20 @@ def head_sha(repo_dir: Path) -> str:
     except FileNotFoundError:
         return ""
     return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def _load_self_assessment(repo_dir: Path) -> dict[str, str]:
+    """Read the student's predicted level per criterion from self-assessment.yml."""
+    path = repo_dir / "self-assessment.yml"
+    if not path.exists():
+        return {}
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): str(v) for k, v in data.items()}
 
 
 def _collect_files(repo_dir: Path) -> list[tuple[str, str]]:

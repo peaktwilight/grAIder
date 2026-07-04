@@ -96,6 +96,19 @@ feedback; where allowed, the grade reflects your post-feedback work.
 
 ---
 
+## Reflection and self-assessment
+
+- Every milestone ships a `REFLECTION.md` — fill in the three prompts; the review and your viva build on it.
+- Before submitting you can predict your own rubric level per criterion in a `self-assessment.yml` at the repo root, e.g.:
+  ```yaml
+  # emerging | developing | proficient | exemplary, keyed by criterion id
+  "1": developing
+  "2": proficient
+  ```
+  The report then shows your predicted level next to the review's — the gap is itself useful feedback and trains you to judge your own work. (The grAIder Agent Skill can help you draft it.)
+
+---
+
 ## 4. Using grAIder with Claude Code
 
 If you use **Claude Code** for development, you can install the grAIder Agent Skill. This allows Claude Code to directly run `graider grade` and `graider review` on your behalf, helping you fix lint errors or failing tests interactively.
