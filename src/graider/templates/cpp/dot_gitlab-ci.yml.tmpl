@@ -1,0 +1,19 @@
+stages: [test, quality]
+
+test:
+  image: gcc:13
+  stage: test
+  script:
+    - apt-get update && apt-get install -y cmake
+    - cmake -B build
+    - cmake --build build
+    - ctest --test-dir build --output-on-failure
+
+quality:
+  image: python:3.11
+  stage: quality
+  script:
+    - curl https://qlty.sh | sh
+    - export PATH="$HOME/.qlty/bin:$PATH"
+    - qlty check --all --no-fail
+  allow_failure: true

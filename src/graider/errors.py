@@ -19,3 +19,7 @@ class RosterError(GraiderError):
 
 class GitLabError(GraiderError):
     """A GitLab API call failed or returned an unexpected result."""
+
+
+class TemplateError(GraiderError):
+    """An unknown template was requested or a template could not be rendered."""

@@ -1,0 +1,25 @@
+cmake_minimum_required(VERSION 3.20)
+project({{project_name}} CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+include(FetchContent)
+FetchContent_Declare(
+  Catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG v3.5.2
+)
+FetchContent_MakeAvailable(Catch2)
+
+add_library(calc src/calc.cpp)
+target_include_directories(calc PUBLIC src)
+
+enable_testing()
+add_executable(unit_tests tests/test_calc.cpp)
+target_link_libraries(unit_tests PRIVATE calc Catch2::Catch2WithMain)
+
+list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/extras)
+include(CTest)
+include(Catch)
+catch_discover_tests(unit_tests)

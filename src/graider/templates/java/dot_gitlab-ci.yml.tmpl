@@ -1,0 +1,16 @@
+stages: [test, quality]
+
+test:
+  image: gradle:8.7-jdk21
+  stage: test
+  script:
+    - gradle test --no-daemon
+
+quality:
+  image: python:3.11
+  stage: quality
+  script:
+    - curl https://qlty.sh | sh
+    - export PATH="$HOME/.qlty/bin:$PATH"
+    - qlty check --all --no-fail
+  allow_failure: true

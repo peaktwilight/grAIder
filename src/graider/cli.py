@@ -12,6 +12,12 @@ from graider.config import Config, require_token, resolve_config
 from graider.console import console, print_error, print_groups, print_success
 from graider.errors import GraiderError
 from graider.roster import group_students, read_roster
+from graider.templates import (
+    TemplateContext,
+    TemplateName,
+    render_template,
+    write_files,
+)
 
 app = typer.Typer(
     name="graider",
@@ -120,6 +126,40 @@ def review(ctx: typer.Context) -> None:
 def report(ctx: typer.Context) -> None:
     """Aggregate and export results. (stub)"""
     console.print("report: not yet implemented")
+
+
+template_app = typer.Typer(help="Inspect and render starter templates.")
+app.add_typer(template_app, name="template")
+
+
+@template_app.command("list")
+def template_list() -> None:
+    """List the available starter templates."""
+    for name in TemplateName:
+        console.print(name.value)
+
+
+@template_app.command("render")
+def template_render(
+    template: TemplateName = typer.Option(..., "--template", help="Which starter."),
+    out: Path = typer.Option(..., "--out", help="Output directory."),
+    project_name: str = typer.Option("project", "--name"),
+    course: str = typer.Option("course", "--course"),
+    criteria_repo: str = typer.Option("", "--criteria-repo"),
+    criteria_path: str = typer.Option("", "--criteria-path"),
+    brief_url: str = typer.Option("", "--brief-url"),
+) -> None:
+    """Render a starter template into a local directory (offline)."""
+    context = TemplateContext(
+        project_name=project_name,
+        course=course,
+        criteria_repo=criteria_repo,
+        criteria_path=criteria_path,
+        brief_url=brief_url,
+    )
+    rendered = render_template(template.value, context)
+    write_files(rendered, out)
+    print_success(f"Rendered {len(rendered)} files to {out}")
 
 
 def run() -> None:

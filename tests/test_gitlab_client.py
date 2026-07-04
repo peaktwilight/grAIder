@@ -5,7 +5,7 @@ from gitlab.exceptions import GitlabAuthenticationError, GitlabCreateError, Gitl
 
 from graider.errors import GitLabError
 from graider.gitlab_client import GitLabClient
-from graider.models import InviteStatus
+from graider.models import InviteStatus, RenderedFile
 
 
 @pytest.fixture
@@ -130,4 +130,22 @@ def test_protect_branch_already_protected(fake_gl):
 
 def test_protect_branch_dry_run(fake_gl):
     GitLabClient("https://gl", "t", dry_run=True).protect_branch(1, "main")
+    fake_gl.projects.get.assert_not_called()
+
+
+def test_commit_files(fake_gl):
+    files = [
+        RenderedFile(path=".graider.yml", content="a"),
+        RenderedFile(path="src/calc.py", content="b"),
+    ]
+    GitLabClient("https://gl", "t").commit_files(1, files)
+    payload = fake_gl.projects.get.return_value.commits.create.call_args[0][0]
+    assert payload["branch"] == "main"
+    assert {a["file_path"] for a in payload["actions"]} == {".graider.yml", "src/calc.py"}
+    assert all(a["action"] == "create" for a in payload["actions"])
+
+
+def test_commit_files_dry_run(fake_gl):
+    files = [RenderedFile(path="x", content="y")]
+    GitLabClient("https://gl", "t", dry_run=True).commit_files(1, files)
     fake_gl.projects.get.assert_not_called()

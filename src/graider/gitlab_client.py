@@ -15,7 +15,7 @@ from gitlab.exceptions import (
 )
 
 from graider.errors import GitLabError
-from graider.models import InviteResult, InviteStatus, ProjectRef
+from graider.models import InviteResult, InviteStatus, ProjectRef, RenderedFile
 
 
 class GitLabClient:
@@ -112,6 +112,31 @@ class GitLabClient:
                 return
             raise GitLabError(
                 f"Could not protect branch {branch!r} on project {project_id}: {exc}"
+            ) from exc
+
+    def commit_files(
+        self,
+        project_id: int,
+        files: list[RenderedFile],
+        *,
+        message: str = "Initial commit",
+        branch: str = "main",
+    ) -> None:
+        """Create/overwrite files in a single commit. No-op in dry-run.
+
+        For an empty repository this first commit creates `branch`.
+        """
+        if self.dry_run:
+            return
+        actions = [{"action": "create", "file_path": f.path, "content": f.content} for f in files]
+        project = self._gl.projects.get(project_id, lazy=True)
+        try:
+            project.commits.create(
+                {"branch": branch, "commit_message": message, "actions": actions}
+            )
+        except GitlabCreateError as exc:
+            raise GitLabError(
+                f"Could not push initial commit to project {project_id}: {exc}"
             ) from exc
 
 

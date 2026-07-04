@@ -1,0 +1,18 @@
+stages: [test, quality]
+
+test:
+  image: ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+  stage: test
+  script:
+    - uv sync
+    - uv run ruff check .
+    - uv run pytest
+
+quality:
+  image: python:3.11
+  stage: quality
+  script:
+    - curl https://qlty.sh | sh
+    - export PATH="$HOME/.qlty/bin:$PATH"
+    - qlty check --all --no-fail
+  allow_failure: true

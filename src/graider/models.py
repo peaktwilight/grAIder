@@ -64,3 +64,8 @@ class ProjectRef(BaseModel):
     name: str
     path_with_namespace: str
     web_url: str
+
+
+class RenderedFile(BaseModel):
+    path: str  # target path in the repo, e.g. ".graider.yml"
+    content: str
