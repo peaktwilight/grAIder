@@ -471,7 +471,16 @@ def _load_self_assessment(repo_dir: Path) -> dict[str, str]:
         return {}
     if not isinstance(data, dict):
         return {}
-    return {str(k): str(v) for k, v in data.items()}
+    # Keep only canonical level names: student values are rendered into the
+    # teacher's report table, so anything else (arbitrary text, a `|` that would
+    # break the markdown columns) is dropped rather than passed through.
+    valid = {level.value for level in LEVEL_ORDER}
+    result: dict[str, str] = {}
+    for key, value in data.items():
+        level = str(value).strip().lower()
+        if level in valid:
+            result[str(key)] = level
+    return result
 
 
 def _collect_files(repo_dir: Path) -> list[tuple[str, str]]:
