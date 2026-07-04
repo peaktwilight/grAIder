@@ -270,3 +270,8 @@ answer key, so keep it to yourself rather than sharing it with students.
 graider interview --repo /path/to/repo --criteria-dir ./criteria \
   --topic "Testing" --topic 3 --prompt "probe their design trade-offs"
 ```
+
+### Process signals
+
+grAIder surfaces git-history signals (commit cadence, contribution split, large code drops) in reports and viva prompts; these are **triage and conversation aids for the teacher, not evidence of misconduct**, and never drive an automatic penalty.
+

@@ -18,6 +18,9 @@ CSV_COLUMNS = [
     "coverage_percent",
     "qlty_issues",
     "qlty_smells",
+    "commits",
+    "commit_days",
+    "largest_commit_lines",
     "criteria_met",
     "criteria_total",
     "count_emerging",
@@ -74,6 +77,18 @@ def render_report(grade: GradeResult | None, review: ReviewResult | None, url: s
             lines.append(f"- Tool notes: {'; '.join(grade.errors)}")
         lines.append("")
 
+        if grade.history is not None:
+            h = grade.history
+            contributors = ", ".join(f"{email} ({n})" for email, n in sorted(h.authors.items()))
+            lines += [
+                "",
+                "## Process (git history — triage signal, not a grade)",
+                "",
+                f"- Commits: {h.commits} across {h.commit_days} day(s) (span {h.span_days} day(s))",
+                f"- Largest single commit: {h.largest_commit_lines} lines",
+                f"- Contributors: {contributors or '-'}",
+            ]
+
     if review is not None:
         met = sum(v.met for v in review.criteria)
         lines += [
@@ -114,6 +129,7 @@ def summary_row(
 ) -> dict[str, object]:
     name = (grade.project if grade else None) or (review.project if review else "project")
     levels = [v.level.value for v in review.criteria] if review else []
+    history = grade.history if grade else None
     return {
         "project": name,
         "url": url,
@@ -123,6 +139,9 @@ def summary_row(
         "coverage_percent": grade.coverage_percent if grade else "",
         "qlty_issues": grade.qlty_issues if grade else "",
         "qlty_smells": grade.qlty_smells if grade else "",
+        "commits": history.commits if history else "",
+        "commit_days": history.commit_days if history else "",
+        "largest_commit_lines": history.largest_commit_lines if history else "",
         "criteria_met": sum(v.met for v in review.criteria) if review else "",
         "criteria_total": len(review.criteria) if review else "",
         # Empty (not 0) when there is no review, so a grade-only project is not
