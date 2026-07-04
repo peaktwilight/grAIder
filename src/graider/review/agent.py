@@ -421,7 +421,12 @@ def review_project(
             return hit
     output = backend.run(system, user_prompt, model, ReviewOutput)
     revision_of, progress = ("", [])
-    if prior is not None and prior.head_sha and prior.head_sha != head_sha(repo_dir):
+    if (
+        prior is not None
+        and prior.project == repo_dir.name  # never diff against another project's results
+        and prior.head_sha
+        and prior.head_sha != head_sha(repo_dir)
+    ):
         revision_of, progress = compute_progress(prior, output.criteria)
     result = ReviewResult(
         project=repo_dir.name,

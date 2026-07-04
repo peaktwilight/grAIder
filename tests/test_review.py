@@ -387,6 +387,30 @@ def test_compute_progress_none_prior():
     assert compute_progress(None, []) == ("", [])
 
 
+def test_review_project_ignores_prior_from_other_project(tmp_path):
+    from graider.models import ReviewResult
+
+    # A prior belonging to a different project must not contaminate progress.
+    (tmp_path / "main.py").write_text("print(1)\n")
+    output = ReviewOutput(
+        overall_summary="ok",
+        criteria=[CriterionVerdict(id="1", title="Testing", met=False, evidence=[], comment="")],  # type: ignore
+    )
+    other = ReviewResult(
+        project="someone-else",
+        head_sha="deadbeef",
+        model="m",
+        cutoff="",
+        overall_summary="",
+        criteria=[CriterionVerdict(id="1", title="Testing", met=True, evidence=[], comment="")],  # type: ignore
+    )
+    result = review_project(
+        tmp_path, "brief", _items(), client=_fake_client(output), model="m", prior=other
+    )
+    assert result.revision_of == ""
+    assert result.progress == []
+
+
 def test_formative_feedback_header():
     from graider.feedback.render import render_feedback
     from graider.models import CriterionVerdict, ReviewResult
