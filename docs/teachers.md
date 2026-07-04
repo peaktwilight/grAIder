@@ -226,6 +226,16 @@ bulk-approve once you have built trust in the drafts. The draft is marked
 unless you pass `--force`. Any prompt-injection warnings are surfaced here for
 your attention before anything is published.
 
+### Calibration (anchor submissions)
+
+The teacher hand-grades 2–3 representative submissions with:
+
+```bash
+graider calibrate --repo /path/to/student/repo --criteria-dir ./criteria --level 1=proficient --level 2=developing
+```
+
+Add `--check` to see how far the AI is from your grades. The anchors are stored in the criteria repo and injected into subsequent reviews so the model matches the instructor's standard. Reports flag projects where the AI verdict and automated metrics disagree.
+
 ---
 
 ## 7. Generating Reports

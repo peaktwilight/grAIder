@@ -116,6 +116,14 @@ class GradeResult(BaseModel):
     history: HistoryMetrics | None = None
 
 
+class Anchor(BaseModel):
+    """A teacher-graded reference submission used to calibrate the model."""
+
+    name: str
+    levels: dict[str, str] = {}  # criterion id -> the teacher's level
+    note: str = ""
+
+
 class PerformanceLevel(StrEnum):
     """Ordered analytic-rubric mastery levels (emerging is lowest)."""
 

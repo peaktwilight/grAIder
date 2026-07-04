@@ -117,3 +117,56 @@ def test_render_report_self_assessment():
     md = render_report(_grade(), review)
     assert "Self" in md
     assert "developing" in md
+
+
+def test_discrepancy_flagging():
+    from graider.models import PerformanceLevel as P
+    from graider.report.build import flag_discrepancies
+
+    grade_bad = GradeResult(project="p", template="t", tests_passed=1, tests_failed=1)
+    review_good = ReviewResult(
+        project="p",
+        head_sha="abc",
+        model="m",
+        cutoff="2",
+        overall_summary="summary",
+        criteria=[
+            CriterionVerdict(
+                id="1",
+                title="A",
+                level=P.PROFICIENT,
+                evidence=[],
+                comment="",
+            )
+        ],
+    )
+    flags = flag_discrepancies(grade_bad, review_good)
+    assert len(flags) == 1
+    assert "test(s) failing" in flags[0]
+
+    md = render_report(grade_bad, review_good)
+    assert "Discrepancies" in md
+
+    grade_good = GradeResult(project="p", template="t", tests_passed=3, tests_failed=0)
+    review_bad = ReviewResult(
+        project="p",
+        head_sha="abc",
+        model="m",
+        cutoff="2",
+        overall_summary="summary",
+        criteria=[
+            CriterionVerdict(
+                id="1",
+                title="A",
+                level=P.EMERGING,
+                evidence=[],
+                comment="",
+            )
+        ],
+    )
+    flags2 = flag_discrepancies(grade_good, review_bad)
+    assert len(flags2) == 1
+    assert "all tests pass" in flags2[0]
+
+    md2 = render_report(grade_good, review_bad)
+    assert "Discrepancies" in md2
