@@ -460,3 +460,18 @@ def test_review_project_attaches_self_assessment(tmp_path):
     output = ReviewOutput(overall_summary="ok", criteria=[])
     result = review_project(tmp_path, "brief", _items(), client=_fake_client(output), model="m")
     assert result.self_assessment == {"1": "proficient"}
+
+
+def test_build_prompt_includes_anchors():
+    from graider.models import Anchor
+    from graider.review.agent import _build_prompt
+
+    prompt = _build_prompt(
+        "brief",
+        _items()[:1],
+        None,
+        [("a.py", "x")],
+        [Anchor(name="bench", levels={"1": "proficient"})],
+    )
+    assert "calibration anchors" in prompt.lower()
+    assert "bench" in prompt

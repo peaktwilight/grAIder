@@ -289,6 +289,66 @@ def grade(
     print_success(f"Graded {len(graded)} project(s) → {results}")
 
 
+@app.command()
+def calibrate(
+    ctx: typer.Context,
+    repo: Path = typer.Option(Path("."), "--repo", help="The benchmark submission."),
+    criteria_dir: Optional[Path] = typer.Option(None, "--criteria-dir"),
+    criteria_repo: str = typer.Option("", "--criteria-repo"),
+    criteria_path: str = typer.Option("", "--criteria-path"),
+    name: str = typer.Option("", "--name", help="Anchor name (default: repo dir name)."),
+    level: Optional[list[str]] = typer.Option(
+        None, "--level", help="Teacher level as ID=LEVEL (repeatable)."
+    ),
+    up_to: Optional[str] = typer.Option(None, "--up-to"),
+    note: str = typer.Option("", "--note"),
+    check: bool = typer.Option(False, "--check", help="Run the AI on it and report drift."),
+    model: str = typer.Option(DEFAULT_MODEL, "--model"),
+    backend: str = typer.Option("auto", "--backend"),
+) -> None:
+    """Record a teacher-graded benchmark submission to calibrate the model."""
+    from graider.authoring.anchors import agreement, save_anchor
+    from graider.models import Anchor, PerformanceLevel
+
+    source = _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path)
+    if criteria_dir is None:
+        raise GraiderError("calibrate needs a local --criteria-dir to store the anchor.")
+    criteria = load_criteria_dir(source)
+    cutoff: str | int | None = up_to if up_to is not None else released_cutoff(source)
+    in_scope, _ = split_by_cutoff(criteria.items, cutoff)
+
+    valid = {lvl.value for lvl in PerformanceLevel}
+    levels: dict[str, str] = {}
+    provided = {}
+    for pair in level or []:
+        if "=" in pair:
+            cid, lvl = pair.split("=", 1)
+            provided[cid.strip()] = lvl.strip().lower()
+    for item in in_scope:
+        chosen = provided.get(item.id)
+        if chosen is None:
+            prompt_text = f"Level for {item.id}. {item.title} ({'/'.join(valid)})"
+            chosen = typer.prompt(prompt_text).strip().lower()
+        if chosen not in valid:
+            raise GraiderError(f"criterion {item.id}: {chosen!r} is not a level ({sorted(valid)}).")
+        levels[item.id] = chosen
+
+    anchor = Anchor(name=name or repo.resolve().name, levels=levels, note=note)
+
+    if check:
+        be = select_backend(backend)
+        result = review_project(
+            repo, criteria.brief, in_scope, cutoff=str(cutoff or ""), model=model, backend=be
+        )
+        agree, total, disagreements = agreement(anchor, result.criteria)
+        console.print(f"Model agreement with your grades: {agree}/{total}")
+        for d in disagreements:
+            print_warning(d)
+
+    save_anchor(criteria_dir, anchor)
+    print_success(f"Saved anchor {anchor.name!r} → {criteria_dir}/anchors.yml")
+
+
 review_app = typer.Typer(
     help="Draft an AI review (default) and, after teacher approval, publish it.",
     invoke_without_command=True,
@@ -330,6 +390,9 @@ def review(
     config = _config(ctx)
     source = _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path)
     criteria = load_criteria_dir(source)
+    from graider.authoring.anchors import load_anchors
+
+    anchors = load_anchors(source)
 
     cutoff: str | int | None = up_to if up_to is not None else released_cutoff(source)
     in_scope, out_scope = split_by_cutoff(criteria.items, cutoff)
@@ -365,6 +428,7 @@ def review(
         refresh=force,
         prior=prior,
         formative=formative,
+        anchors=anchors,
     )
     print_review(result)
     for warning in result.warnings:

@@ -57,6 +57,21 @@ def project_urls(state_path: Path | None) -> dict[str, str]:
     return {p.name: p.web_url for p in state.projects.values()}
 
 
+def flag_discrepancies(grade: GradeResult | None, review: ReviewResult | None) -> list[str]:
+    """Flag where the AI review and automated metrics disagree (teacher triage)."""
+    if grade is None or review is None or not review.criteria:
+        return []
+    met = sum(v.met for v in review.criteria)
+    total = len(review.criteria)
+    ratio = met / total if total else 0.0
+    flags: list[str] = []
+    if ratio >= 0.8 and grade.tests_failed > 0:
+        flags.append(f"AI passed {met}/{total} criteria but {grade.tests_failed} test(s) failing")
+    if ratio <= 0.3 and grade.tests_failed == 0 and grade.tests_passed > 0:
+        flags.append(f"AI passed only {met}/{total} criteria but all tests pass")
+    return flags
+
+
 def render_report(grade: GradeResult | None, review: ReviewResult | None, url: str = "") -> str:
     name = (grade.project if grade else None) or (review.project if review else "project")
     lines = [f"# {name}", ""]
@@ -121,6 +136,12 @@ def render_report(grade: GradeResult | None, review: ReviewResult | None, url: s
                 *[f"- {v.id}. {v.title}: {v.next_step.strip()}" for v in next_steps],
                 "",
             ]
+
+    flags = flag_discrepancies(grade, review)
+    if flags:
+        lines += ["", "## ⚠ Discrepancies (AI vs metrics — check these)", ""]
+        lines += [f"- {f}" for f in flags]
+        lines += [""]
 
     return "\n".join(lines)
 

@@ -370,3 +370,32 @@ def test_review_publish_skips_when_already_published(tmp_path, monkeypatch):
     assert result.exit_code == 0
     client.upsert_issue.assert_not_called()
     assert "Already published" in result.output
+
+
+def test_calibrate_saves_anchor(tmp_path):
+    crit = tmp_path / "criteria"
+    crit.mkdir()
+    (crit / "criteria.md").write_text("# Brief\nx\n\n## 1. Testing\nbody\n\n## 2. Docs\nbody\n")
+    (crit / "graider-criteria.yml").write_text("released_up_to: 0\n")
+    repo = tmp_path / "sub"
+    repo.mkdir()
+    result = run_cli(
+        [
+            *_no_config(tmp_path),
+            "calibrate",
+            "--repo",
+            str(repo),
+            "--criteria-dir",
+            str(crit),
+            "--name",
+            "bench",
+            "--level",
+            "1=proficient",
+            "--level",
+            "2=emerging",
+            "--up-to",
+            "2",
+        ]
+    )
+    assert result.exit_code == 0
+    assert (crit / "anchors.yml").exists()
