@@ -5,6 +5,7 @@ import pytest
 from graider.errors import GraiderError
 from graider.models import CriteriaItem, CriterionVerdict, ReviewOutput
 from graider.review.agent import _build_prompt, _collect_files, review_project
+from graider.review.cache import ReviewCache
 
 
 def _items():
@@ -207,3 +208,62 @@ def test_gemini_backend_captures_usage():
     backend = GeminiBackend(client=client)
     backend.run("s", "u", "m", ReviewOutput)
     assert backend.last_usage == Usage(input_tokens=8, output_tokens=9)
+
+
+class _CountingBackend:
+    last_usage = None
+
+    def __init__(self, output):
+        self._output = output
+        self.calls = 0
+
+    def run(self, system, user_prompt, model, output_format):
+        self.calls += 1
+        return self._output
+
+
+def test_review_cache_hit_skips_backend(tmp_path):
+    (tmp_path / "main.py").write_text("print(1)\n")
+    out = ReviewOutput(overall_summary="Solid.", criteria=[])
+    backend = _CountingBackend(out)
+    cache = ReviewCache.load(tmp_path / "r.cache.json")
+    review_project(tmp_path, "brief", _items(), backend=backend, model="m", cache=cache)
+    review_project(tmp_path, "brief", _items(), backend=backend, model="m", cache=cache)
+    assert backend.calls == 1
+    assert cache.last_hit is True
+
+
+def test_review_cache_invalidated_by_model(tmp_path):
+    (tmp_path / "main.py").write_text("print(1)\n")
+    out = ReviewOutput(overall_summary="Solid.", criteria=[])
+    backend = _CountingBackend(out)
+    cache = ReviewCache.load(tmp_path / "r.cache.json")
+    review_project(tmp_path, "brief", _items(), backend=backend, model="m1", cache=cache)
+    review_project(tmp_path, "brief", _items(), backend=backend, model="m2", cache=cache)
+    assert backend.calls == 2
+
+
+def test_review_cache_refresh_bypasses_hit(tmp_path):
+    (tmp_path / "main.py").write_text("print(1)\n")
+    out = ReviewOutput(overall_summary="Solid.", criteria=[])
+    backend = _CountingBackend(out)
+    cache = ReviewCache.load(tmp_path / "r.cache.json")
+    review_project(tmp_path, "brief", _items(), backend=backend, model="m", cache=cache)
+    review_project(
+        tmp_path, "brief", _items(), backend=backend, model="m", cache=cache, refresh=True
+    )
+    assert backend.calls == 2
+
+
+def test_review_cache_persists_across_load(tmp_path):
+    (tmp_path / "main.py").write_text("print(1)\n")
+    out = ReviewOutput(overall_summary="Solid.", criteria=[])
+    backend = _CountingBackend(out)
+    path = tmp_path / "r.cache.json"
+    review_project(
+        tmp_path, "brief", _items(), backend=backend, model="m", cache=ReviewCache.load(path)
+    )
+    fresh = ReviewCache.load(path)
+    review_project(tmp_path, "brief", _items(), backend=backend, model="m", cache=fresh)
+    assert backend.calls == 1
+    assert fresh.last_hit is True

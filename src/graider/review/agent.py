@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError
 
 from graider.errors import GraiderError
 from graider.models import CriteriaItem, GradeResult, ReviewOutput, ReviewResult, Usage
+from graider.review.cache import ReviewCache, cache_key
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -371,11 +372,19 @@ def review_project(
     model: str = DEFAULT_MODEL,
     backend: ModelBackend | None = None,
     client: anthropic.Anthropic | None = None,
+    cache: ReviewCache | None = None,
+    refresh: bool = False,
 ) -> ReviewResult:
     backend = backend or ApiBackend(client=client)
     user_prompt = _build_prompt(brief, in_scope, grade, _collect_files(repo_dir))
+    key = cache_key(model, _SYSTEM, user_prompt)
+    if cache is not None and not refresh:
+        hit = cache.get(key)
+        if hit is not None:
+            cache.last_hit = True
+            return hit
     output = backend.run(_SYSTEM, user_prompt, model, ReviewOutput)
-    return ReviewResult(
+    result = ReviewResult(
         project=repo_dir.name,
         head_sha=head_sha(repo_dir),
         model=model,
@@ -383,6 +392,9 @@ def review_project(
         overall_summary=output.overall_summary,
         criteria=output.criteria,
     )
+    if cache is not None:
+        cache.put(key, result)
+    return result
 
 
 def head_sha(repo_dir: Path) -> str:
