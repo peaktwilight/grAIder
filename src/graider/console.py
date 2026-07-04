@@ -1,5 +1,7 @@
 """Shared Rich consoles and output helpers."""
 
+from pathlib import Path
+
 from rich.console import Console
 from rich.table import Table
 
@@ -28,6 +30,15 @@ def print_warning(message: str) -> None:
 
 def print_success(message: str) -> None:
     console.print(f"[bold green]✓[/] {message}")
+
+
+def print_check_report(criteria_dir: Path, problems: list[str]) -> None:
+    if not problems:
+        print_success(f"{criteria_dir}: criteria OK")
+        return
+    err_console.print(f"[bold red]✗[/] {criteria_dir}: {len(problems)} problem(s)")
+    for problem in problems:
+        err_console.print(f"  • {problem}")
 
 
 def print_groups(groups: list[Group]) -> None:

@@ -9,9 +9,16 @@ from typing import Optional
 import typer
 
 from graider import __version__
+from graider.authoring.criteria import DEFAULT_MODEL as CRITERIA_MODEL
+from graider.authoring.criteria import (
+    check_criteria_dir,
+    draft_criteria,
+    write_criteria_dir,
+)
 from graider.config import Config, require_token, resolve_config
 from graider.console import (
     console,
+    print_check_report,
     print_criteria_scope,
     print_error,
     print_grade_table,
@@ -334,6 +341,34 @@ def template_render(
     rendered = render_template(template.value, context)
     write_files(rendered, out)
     print_success(f"Rendered {len(rendered)} files to {out}")
+
+
+criteria_app = typer.Typer(help="Author and validate grading criteria.")
+app.add_typer(criteria_app, name="criteria")
+
+
+@criteria_app.command("init")
+def criteria_init(
+    syllabus: Path = typer.Option(..., "--syllabus", exists=True, dir_okay=False),
+    out: Path = typer.Option(..., "--out", help="Criteria repo directory to create."),
+    model: str = typer.Option(CRITERIA_MODEL, "--model"),
+    force: bool = typer.Option(False, "--force"),
+) -> None:
+    """Draft a staggered-eval criteria repo from a syllabus."""
+    draft = draft_criteria(syllabus, model=model)
+    write_criteria_dir(draft, out, force=force)
+    print_success(f"Drafted {len(draft.items)} criteria → {out} (released_up_to: 0)")
+
+
+@criteria_app.command("check")
+def criteria_check(
+    criteria_dir: Path = typer.Argument(..., exists=True, file_okay=False),
+) -> None:
+    """Validate a criteria repo (ids, order, cutoff)."""
+    problems = check_criteria_dir(criteria_dir)
+    print_check_report(criteria_dir, problems)
+    if problems:
+        raise typer.Exit(code=1)
 
 
 def run() -> None:

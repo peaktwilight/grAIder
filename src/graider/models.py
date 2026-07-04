@@ -141,3 +141,13 @@ class ReviewResult(BaseModel):
     cutoff: str
     overall_summary: str
     criteria: list[CriterionVerdict]
+
+
+class DraftItem(BaseModel):
+    title: str
+    body: str  # description + suggested evaluation questions for graders
+
+
+class CriteriaDraft(BaseModel):
+    brief: str
+    items: list[DraftItem]
