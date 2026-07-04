@@ -1,13 +1,22 @@
 # Feature Requests — Implementation Plan
 
-Design plan for the post-roadmap features gathered in `feature_requests.md`.
-These come **after** Milestones 1–10 (the core setup/grade/review pipeline) and
-build on that foundation — several depend on Milestone 8's agentic review being
-in place. Numbered here as extension milestones **E1–E4**.
+Design plan for the post-roadmap features gathered in `feature_requests.md`,
+plus later requests. These come **after** Milestones 1–10 (the core
+setup/grade/review pipeline) and build on that foundation — several depend on
+Milestone 8's agentic review being in place. Numbered here as extension
+milestones **E1–E6**:
+
+- **E1–E4** — from `feature_requests.md`: context-aware config, multi-class
+  support, and feedback via merge requests / issues.
+- **E5** — run the AI review through the Claude Code CLI (subscription auth), not
+  only the API SDK.
+- **E6** — ship grAIder Agent Skills so a teacher's Claude Code session can drive
+  the CLI.
 
 Unlike the M1–M7 specs, this is a design plan (interfaces + approach + risks),
 not line-by-line copy-paste code, because these features touch external
-workflows (GitLab MRs/issues) and cross-cut existing modules.
+workflows (GitLab MRs/issues, the Claude Code CLI) and cross-cut existing
+modules.
 
 ---
 
@@ -176,21 +185,120 @@ A no-MR workflow: post the review as a GitLab **issue** on the student project.
 
 ---
 
+## E5 — Claude Code headless review backend (subscription auth)
+
+> "Teachers should be able to run the AI review on their Claude Pro/Max
+> subscription via the Claude Code CLI, not only over the API SDK."
+
+### Goal
+Let the Milestone 8 review run through the **Claude Code CLI in headless mode**
+(subscription OAuth) as an alternative to the `anthropic` API SDK
+(`ANTHROPIC_API_KEY`, pay-per-token). Same inputs, same `ReviewResult` output —
+different billing/auth path.
+
+### Approach
+- **Backend abstraction.** Refactor Milestone 8's `review/agent.py` so the model
+  call sits behind a small interface (e.g. `ReviewBackend.run(prompt, system,
+  model) -> ReviewOutput`) with two implementations:
+  - `ApiBackend` — the existing `client.messages.parse(...)` path (schema-guaranteed
+    structured output). Still the default for CI and automation.
+  - `ClaudeCodeBackend` — shells out to `claude -p "<prompt>" --output-format json
+    --model <model>`, reads the JSON envelope's `result`, and validates it against
+    `ReviewOutput` with `model_validate_json`.
+- **Selection.** A `--backend {api,claude-code}` option on `review` plus a config
+  default. Sensible auto-rule: use `claude-code` when the `claude` binary is on
+  PATH and no `ANTHROPIC_API_KEY` is set; otherwise `api`.
+- **Structured output without a schema guarantee.** Claude Code headless mode
+  does **not** enforce a response schema the way `messages.parse` does. The
+  Claude Code backend must instruct the model to emit **JSON only** (embed the
+  `ReviewOutput` shape in the prompt), parse + validate it, and do **one repair
+  retry** ("your last reply wasn't valid JSON for this schema; return only …")
+  before failing.
+- **UX / credential handling.** If `claude` isn't installed or the user isn't
+  logged in, wrap the subprocess failure in a clean `GraiderError`
+  ("install Claude Code and run `claude login`") — same discipline as the GitLab
+  and API error wrapping.
+
+### Key files
+`review/backends.py` (the interface + both backends), `review/agent.py`
+(select + call a backend), `cli.py` (`--backend`), `config.py` (default backend).
+
+### Risks / notes
+- **CI still needs the API backend** — a runner has no interactive subscription
+  session, only an `ANTHROPIC_API_KEY`. Keep `api` as the automation default; the
+  Claude Code backend is for local teacher use.
+- Model availability differs by plan (Opus may require Max; Pro may cap at
+  Sonnet), and subscription usage limits apply to large repos.
+- Claude Code CLI flags evolve — **verify `-p`/`--print`, `--output-format`, and
+  `--model` against the installed `claude` version** before wiring them.
+- Future option: instead of stuffing files into the prompt, let the Claude Code
+  backend explore the repo with its own read/grep tools (a natural fit for the
+  CLI). Deferred — start with prompt-embedded files for parity with `ApiBackend`.
+
+---
+
+## E6 — grAIder skill for Claude Code
+
+> "Add skill(s) that mention the graider CLI and what to look out for, so a
+> teacher's Claude Code session can drive grAIder."
+
+### Goal
+Ship Agent Skills so that when a teacher works **inside their own Claude Code
+session**, Claude knows how to run grAIder and the operational gotchas — distinct
+from E5 (which is about *who pays for the review*).
+
+### Approach
+- **Package `SKILL.md` files** under `src/graider/skills/` (packaged like the
+  templates). Likely two: a `graider` skill (command/workflow reference) and a
+  `graider-grading` skill (interpreting grade/review output).
+- **A `graider skills install [--dir ~/.claude/skills] [--project]` command** that
+  copies them into the user's `~/.claude/skills/graider/` (or a project's
+  `.claude/skills/`) so Claude Code auto-discovers them. Alternatively commit them
+  into the course repo under `.claude/skills/`.
+- **Content = the accumulated "what to look out for":** run `--dry-run` first;
+  `--org` is required for real runs; `graider.lock.json` is committed and re-runs
+  are idempotent; the `no_account` invite list means "verify manually" (public-email
+  lookup caveat), not "definitely no account"; qlty jobs are `allow_failure`;
+  grading is `--up-to`-gated for staggered evaluation; global flags (`--dry-run`)
+  go **before** the subcommand while command flags go after; the review needs
+  either `--criteria-dir`/`--criteria-repo` or a repo `.graider.yml`.
+
+### Key files
+`src/graider/skills/*/SKILL.md` (package data), `cli.py` (`skills install`),
+reuse the `importlib.resources` packaging pattern already used for templates.
+
+### Risks / notes
+- Skill discovery paths and `SKILL.md` frontmatter are Claude Code conventions —
+  **verify the expected directory (`~/.claude/skills/<name>/SKILL.md`) and
+  frontmatter fields against the installed Claude Code** before finalizing.
+- Keep the skill content in sync with the CLI: when a flag or gotcha changes,
+  the skill is another place to update (note it in the relevant milestone).
+- Independent of E1–E5 — can be built any time; naturally pairs with E5 for
+  teachers standardizing on Claude Code.
+
+---
+
 ## Suggested order
 
 1. **E1** (project config discovery) — foundational; removes flag repetition.
 2. **E2** (multi-class) — layers on E1's config plumbing.
-3. **Milestone 8** must land before E3/E4 (they post its output).
+3. **Milestone 8** must land before E3/E4/E5 (they consume its review output).
 4. **E3 / E4** — build the shared `feedback/render.py` first, then the MR path
    (E3) and issue path (E4) on top; they differ only in the GitLab surface they
    post to.
+5. **E5** (Claude Code review backend) — refactors Milestone 8's single model
+   call behind a backend interface; do it before layering more onto `review`.
+6. **E6** (grAIder skill) — independent; ship whenever, pairs well with E5.
 
 ## Cross-cutting
 
-- All four honor the existing offline `--dry-run` contract: no network,
-  render/preview only.
+- All GitLab/AI features honor the existing offline `--dry-run` contract: no
+  network, render/preview only.
 - All GitLab writes go through `GitLabClient` (consistent error wrapping,
   retries, dry-run gating) — do not call `python-gitlab` directly from the
   feedback modules.
 - Feedback idempotency uses a hidden marker comment so re-runs update rather
   than duplicate — the same discipline as the `graider.lock.json` state file.
+- E5/E6 both shell out to or target the external `claude` binary — verify its
+  actual flags and skill conventions against the installed version rather than
+  relying on remembered ones.
