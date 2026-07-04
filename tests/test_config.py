@@ -82,3 +82,42 @@ def test_require_token_raises_with_url(tmp_path):
     with pytest.raises(AuthError) as excinfo:
         require_token(cfg)
     assert "https://git.uni.edu/-/user_settings/personal_access_tokens" in str(excinfo.value)
+
+
+def test_find_project_file_in_parent(tmp_path):
+    from graider.config import find_project_file
+
+    (tmp_path / "graider.toml").write_text('org = "swe/2026"\n')
+    sub = tmp_path / "a" / "b"
+    sub.mkdir(parents=True)
+    assert find_project_file(sub) == tmp_path / "graider.toml"
+
+
+def test_project_file_supplies_gitlab_url(tmp_path):
+    (tmp_path / "graider.toml").write_text('gitlab_url = "https://git.uni.edu"\norg = "swe/2026"\n')
+    cfg = resolve_config(
+        token=None, gitlab_url=None, config_path=_missing(tmp_path), project_start=tmp_path
+    )
+    assert cfg.gitlab_url == "https://git.uni.edu"
+    assert cfg.project is not None
+    assert cfg.project.org == "swe/2026"
+
+
+def test_cli_gitlab_url_beats_project_file(tmp_path):
+    (tmp_path / "graider.toml").write_text('gitlab_url = "https://git.uni.edu"\n')
+    cfg = resolve_config(
+        token=None,
+        gitlab_url="https://gitlab.com",
+        config_path=_missing(tmp_path),
+        project_start=tmp_path,
+    )
+    assert cfg.gitlab_url == "https://gitlab.com"
+
+
+def test_project_file_resolve_path(tmp_path):
+    from graider.config import load_project_file
+
+    (tmp_path / "graider.toml").write_text('roster = "students.csv"\n')
+    pf = load_project_file(tmp_path / "graider.toml")
+    assert pf.resolve_path(pf.roster) == tmp_path / "students.csv"
+    assert pf.resolve_path("") is None

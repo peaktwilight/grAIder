@@ -13,12 +13,65 @@ from graider.errors import AuthError, ConfigError
 DEFAULT_GITLAB_URL = "https://gitlab.com"
 
 
+class ProjectFile(BaseModel):
+    """A discovered project-level graider.toml (instructor course context)."""
+
+    dir: Path  # directory containing graider.toml
+    gitlab_url: str | None = None
+    org: str = ""
+    roster: str = ""
+    template: str = ""
+    course: str = ""
+    name_prefix: str = ""
+    state: str = ""
+    brief_url: str = ""
+    criteria_repo: str = ""
+    criteria_path: str = ""
+
+    def resolve_path(self, value: str) -> Path | None:
+        """Resolve a relative path value against the config dir."""
+        return (self.dir / value) if value else None
+
+
 class Config(BaseModel):
     """Resolved runtime configuration."""
 
     gitlab_url: str
     token: str | None = None
     dry_run: bool = False
+    project: ProjectFile | None = None
+
+
+def find_project_file(start: Path | None = None) -> Path | None:
+    """Walk up from `start` (default cwd) to find a graider.toml."""
+    current = (start or Path.cwd()).resolve()
+    for directory in [current, *current.parents]:
+        candidate = directory / "graider.toml"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def load_project_file(path: Path) -> ProjectFile:
+    try:
+        with path.open("rb") as fh:
+            data = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ConfigError(f"Could not read {path}: {exc}") from exc
+    criteria = data.get("criteria") or {}
+    return ProjectFile(
+        dir=path.parent,
+        gitlab_url=data.get("gitlab_url"),
+        org=data.get("org", ""),
+        roster=data.get("roster", ""),
+        template=data.get("template", ""),
+        course=data.get("course", ""),
+        name_prefix=data.get("name_prefix", ""),
+        state=data.get("state", ""),
+        brief_url=data.get("brief_url", ""),
+        criteria_repo=criteria.get("repo", ""),
+        criteria_path=criteria.get("path", ""),
+    )
 
 
 def default_config_path() -> Path:
@@ -45,11 +98,20 @@ def resolve_config(
     gitlab_url: str | None,
     config_path: Path | None,
     dry_run: bool = False,
+    project_start: Path | None = None,
 ) -> Config:
     file_data = load_config_file(config_path)
-    resolved_url = gitlab_url or file_data.get("gitlab_url") or DEFAULT_GITLAB_URL
+    project_path = find_project_file(project_start)
+    project = load_project_file(project_path) if project_path else None
+
+    resolved_url = (
+        gitlab_url
+        or (project.gitlab_url if project else None)
+        or file_data.get("gitlab_url")
+        or DEFAULT_GITLAB_URL
+    )
     resolved_token = token or file_data.get("token")
-    return Config(gitlab_url=resolved_url, token=resolved_token, dry_run=dry_run)
+    return Config(gitlab_url=resolved_url, token=resolved_token, dry_run=dry_run, project=project)
 
 
 def token_creation_url(gitlab_url: str) -> str:

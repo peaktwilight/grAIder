@@ -268,3 +268,27 @@ def test_report_single_dir(tmp_path, monkeypatch):
     assert result.exit_code == 0
     assert (out_dir / "p.md").exists()
     assert (out_dir / "summary.csv").exists()
+
+
+def test_setup_reads_graider_toml(tmp_path, monkeypatch):
+    monkeypatch.delenv("GITLAB_TOKEN", raising=False)
+    (tmp_path / "roster.csv").write_text("email,group\na@x.edu,1\n")
+    (tmp_path / "graider.toml").write_text(
+        'org = "swe/2026"\ntemplate = "python"\nroster = "roster.csv"\n'
+    )
+    monkeypatch.chdir(tmp_path)
+    # no --roster / --org: both come from graider.toml
+    result = run_cli(["--config", str(tmp_path / "nope.toml"), "--dry-run", "setup"])
+    assert result.exit_code == 0
+    assert "a@x.edu" in result.output
+
+
+def test_init_scaffolds_toml(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = run_cli([*_no_config(tmp_path), "init", "--org", "swe/2026"])
+    assert result.exit_code == 0
+    assert (tmp_path / "graider.toml").exists()
+    assert 'org = "swe/2026"' in (tmp_path / "graider.toml").read_text()
+    # re-run without --force errors
+    result2 = run_cli([*_no_config(tmp_path), "init"])
+    assert result2.exit_code == 1

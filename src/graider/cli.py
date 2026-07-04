@@ -118,8 +118,8 @@ def _config(ctx: typer.Context) -> Config:
 @app.command()
 def setup(
     ctx: typer.Context,
-    roster: Path = typer.Option(
-        ...,
+    roster: Optional[Path] = typer.Option(
+        None,
         "--roster",
         exists=True,
         dir_okay=False,
@@ -131,18 +131,38 @@ def setup(
         "--org",
         help="GitLab group/org full path (e.g. swe/2026). Required unless --dry-run.",
     ),
-    template: TemplateName = typer.Option(TemplateName.PYTHON, "--template"),
-    course: str = typer.Option("course", "--course"),
+    template: Optional[TemplateName] = typer.Option(None, "--template"),
+    course: str = typer.Option("", "--course"),
     criteria_repo: str = typer.Option("", "--criteria-repo"),
     criteria_path: str = typer.Option("", "--criteria-path"),
     brief_url: str = typer.Option("", "--brief-url"),
     name_prefix: str = typer.Option("", "--name-prefix"),
-    state_path: Path = typer.Option(Path("graider.lock.json"), "--state"),
+    state_path: Optional[Path] = typer.Option(None, "--state"),
     dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
     """Create a GitLab project per group and invite members."""
     config = _config(ctx)
+    pf = config.project
     dry_run = dry_run or config.dry_run
+
+    # Fall back to graider.toml (E1) for any flag not given on the CLI.
+    org = org or (pf.org if pf else "")
+    course = course or (pf.course if pf else "") or "course"
+    criteria_repo = criteria_repo or (pf.criteria_repo if pf else "")
+    criteria_path = criteria_path or (pf.criteria_path if pf else "")
+    brief_url = brief_url or (pf.brief_url if pf else "")
+    name_prefix = name_prefix or (pf.name_prefix if pf else "")
+    template = template or (
+        TemplateName(pf.template) if pf and pf.template else TemplateName.PYTHON
+    )
+    if roster is None and pf and pf.roster:
+        roster = pf.resolve_path(pf.roster)
+    if roster is None:
+        raise GraiderError("No roster: pass --roster or set roster in graider.toml")
+    if state_path is None:
+        state_path = (pf.resolve_path(pf.state) if pf and pf.state else None) or Path(
+            "graider.lock.json"
+        )
 
     groups = group_students(read_roster(roster))
     state = load_state(state_path)
@@ -383,6 +403,30 @@ def template_render(
     rendered = render_template(template.value, context)
     write_files(rendered, out)
     print_success(f"Rendered {len(rendered)} files to {out}")
+
+
+@app.command()
+def init(
+    org: str = typer.Option("", "--org"),
+    template: TemplateName = typer.Option(TemplateName.PYTHON, "--template"),
+    course: str = typer.Option("course", "--course"),
+    force: bool = typer.Option(False, "--force"),
+) -> None:
+    """Scaffold a graider.toml in the current directory."""
+    path = Path("graider.toml")
+    if path.exists() and not force:
+        raise GraiderError("graider.toml already exists; pass --force to overwrite.")
+    path.write_text(
+        f'gitlab_url = "https://gitlab.com"\n'
+        f'org = "{org}"\n'
+        f'template = "{template.value}"\n'
+        f'course = "{course}"\n'
+        f'roster = "students.csv"\n'
+        f'state = "graider.lock.json"\n\n'
+        f'[criteria]\nrepo = ""\npath = ""\n',
+        encoding="utf-8",
+    )
+    print_success(f"Wrote {path} — edit it, then run `graider setup` with no flags.")
 
 
 criteria_app = typer.Typer(help="Author and validate grading criteria.")
