@@ -24,6 +24,19 @@ gitlab_url = "https://gitlab.example.edu"
 token = "glpat-YOUR_PERSONAL_ACCESS_TOKEN"
 ```
 
+### AI Credentials
+
+The AI-powered commands (`criteria init`, `review`, and `interview`) additionally
+need access to Claude. Choose one:
+
+*   **Anthropic API key** — set `ANTHROPIC_API_KEY` in your shell. Used by the
+    default `--backend api`.
+*   **Claude Code CLI** — install the `claude` CLI and run `claude login` to bill
+    against a Claude Pro/Max subscription. Selected with `--backend claude-code`.
+
+With `--backend auto` (the default), grAIder uses the Claude Code CLI when it is
+installed and no API key is set, otherwise it falls back to the API.
+
 ---
 
 ## 2. Project Configuration & Multi-Class Support
@@ -200,3 +213,33 @@ This merges the data and generates:
 
 1.  **Markdown Reports**: Individual files (e.g., `./reports/group-name.md`) summarizing grade metrics and specific AI review verdicts for each group.
 2.  **Summary CSV**: A `./reports/summary.csv` file mapping out all projects, tests passed/failed, coverage percent, and criteria met for a quick upload to your learning management system.
+
+---
+
+## 8. Generating Interview (Viva) Questions
+
+To prepare for an oral exam, grAIder can generate viva questions that probe
+whether a student genuinely understands their own project and how it connects to
+the course topics. Every question is grounded in the actual repository contents.
+
+```bash
+graider interview --repo /path/to/student/repo --criteria-dir ./criteria --out interview.md
+```
+
+*   `--topic`: Restrict the questions to one or more topics, by criteria ID or a
+    case-insensitive title substring. Repeatable; omit to cover every topic.
+*   `--prompt`: Optional free-text guidance to steer the questions (e.g.,
+    "focus on concurrency and error handling").
+*   `--backend <auto|api|claude-code>`: Same model plumbing as `review` (see
+    [AI Credentials](#ai-credentials)).
+
+The generated Markdown lists each question followed by the **key points** a
+correct answer should cover and the **red flags** that suggest the student does
+not understand their own work. This file is an examiner aid — it contains the
+answer key, so keep it to yourself rather than sharing it with students.
+
+```bash
+# Only the topics that matter for this exam, with extra steering
+graider interview --repo /path/to/repo --criteria-dir ./criteria \
+  --topic "Testing" --topic 3 --prompt "probe their design trade-offs"
+```
