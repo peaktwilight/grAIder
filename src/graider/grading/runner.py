@@ -49,7 +49,7 @@ def _count_json_array(text: str) -> int:
 
 
 def _run_tests(repo_dir: Path, template: str, result: GradeResult) -> None:
-    handlers = {"python": _tests_python, "java": _tests_java, "cpp": _tests_cpp}
+    handlers = {"python": _tests_python, "java": _tests_java, "cpp": _tests_cpp, "go": _tests_go}
     handler = handlers.get(template)
     if handler is None:
         result.errors.append(f"no test runner for template {template!r}")
@@ -100,6 +100,15 @@ def _tests_cpp(repo_dir: Path, result: GradeResult) -> None:
     _capture(["cmake", "-B", "build"], repo_dir)
     _capture(["cmake", "--build", "build"], repo_dir)
     _capture(["ctest", "--test-dir", "build", f"--output-junit={junit}"], repo_dir)
+    _parse_junit(junit, result)
+
+
+def _tests_go(repo_dir: Path, result: GradeResult) -> None:
+    junit = repo_dir / ".graider-junit.xml"
+    if not shutil.which("gotestsum"):
+        result.errors.append("gotestsum not installed; skipped go tests")
+        return
+    _capture(["gotestsum", f"--junitfile={junit}", "--", "./..."], repo_dir)
     _parse_junit(junit, result)
 
 

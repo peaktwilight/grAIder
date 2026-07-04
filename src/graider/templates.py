@@ -15,6 +15,7 @@ class TemplateName(StrEnum):
     PYTHON = "python"
     JAVA = "java"
     CPP = "cpp"
+    GO = "go"
 
 
 TEMPLATES: tuple[str, ...] = tuple(t.value for t in TemplateName)
