@@ -80,3 +80,11 @@ def test_rust_starter(tmp_path: Path) -> None:
     out = _render(tmp_path, "rust")
     env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
     _run(["cargo", "test"], out, env=env)
+
+
+@pytest.mark.skipif(not _have("npm"), reason="npm not installed")
+def test_typescript_starter(tmp_path: Path) -> None:
+    out = _render(tmp_path, "typescript")
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    _run(["npm", "install"], out, env=env)
+    _run(["npm", "test"], out, env=env)

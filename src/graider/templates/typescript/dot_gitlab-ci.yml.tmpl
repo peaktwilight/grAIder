@@ -1,0 +1,17 @@
+stages: [test, quality]
+
+test:
+  image: node:22
+  stage: test
+  script:
+    - npm install
+    - npm test
+
+quality:
+  image: node:22
+  stage: quality
+  script:
+    - curl https://qlty.sh | sh
+    - export PATH="$HOME/.qlty/bin:$PATH"
+    - qlty check --all --no-fail
+  allow_failure: true
