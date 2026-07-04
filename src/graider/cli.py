@@ -9,8 +9,9 @@ import typer
 
 from graider import __version__
 from graider.config import Config, require_token, resolve_config
-from graider.console import console, print_error, print_success
+from graider.console import console, print_error, print_groups, print_success
 from graider.errors import GraiderError
+from graider.roster import group_students, read_roster
 
 app = typer.Typer(
     name="graider",
@@ -70,11 +71,37 @@ def _config(ctx: typer.Context) -> Config:
 
 
 @app.command()
-def setup(ctx: typer.Context) -> None:
-    """Create GitLab projects from a roster. (stub)"""
+def setup(
+    ctx: typer.Context,
+    roster: Path = typer.Option(
+        ...,
+        "--roster",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to the roster CSV/XLSX (student emails + group numbers).",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Parse and preview without touching GitLab.",
+    ),
+) -> None:
+    """Create GitLab projects from a roster. (roster parsing only for now)"""
     config = _config(ctx)
-    require_token(config)
-    print_success(f"setup: not yet implemented (token OK, gitlab_url={config.gitlab_url})")
+    dry_run = dry_run or config.dry_run  # accept the flag before or after the subcommand
+    if not dry_run:
+        require_token(config)  # fail fast before parsing on real runs
+
+    students = read_roster(roster)
+    groups = group_students(students)
+    print_groups(groups)
+
+    summary = f"{len(students)} students in {len(groups)} groups"
+    if dry_run:
+        print_success(f"{summary} (dry run, GitLab untouched).")
+    else:
+        print_success(f"{summary} — project creation not yet implemented.")
 
 
 @app.command()

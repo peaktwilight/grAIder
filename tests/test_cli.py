@@ -58,9 +58,19 @@ def test_help_lists_subcommands():
         assert name in result.output
 
 
+def _roster(tmp_path):
+    p = tmp_path / "roster.csv"
+    p.write_text("email,group\na@x.edu,1\nb@x.edu,2\n")
+    return str(p)
+
+
 def test_setup_without_token_shows_url(tmp_path, monkeypatch):
     monkeypatch.delenv("GITLAB_TOKEN", raising=False)
-    result = run_cli([*_no_config(tmp_path), "setup"], env={}, monkeypatch=monkeypatch)
+    result = run_cli(
+        [*_no_config(tmp_path), "setup", "--roster", _roster(tmp_path)],
+        env={},
+        monkeypatch=monkeypatch,
+    )
     assert result.exit_code == 1
     assert "/-/user_settings/personal_access_tokens" in result.output
 
@@ -68,19 +78,25 @@ def test_setup_without_token_shows_url(tmp_path, monkeypatch):
 def test_setup_with_token_env(tmp_path, monkeypatch):
     monkeypatch.setenv("GITLAB_TOKEN", "glpat-x")
     result = run_cli(
-        [*_no_config(tmp_path), "setup"], env={"GITLAB_TOKEN": "glpat-x"}, monkeypatch=monkeypatch
+        [*_no_config(tmp_path), "setup", "--roster", _roster(tmp_path)],
+        env={"GITLAB_TOKEN": "glpat-x"},
+        monkeypatch=monkeypatch,
     )
     assert result.exit_code == 0
-    assert "not yet implemented" in result.output
+    assert "not yet implemented" in result.output or "2 students" in result.output
 
 
 def test_setup_self_hosted_url(tmp_path, monkeypatch):
     monkeypatch.delenv("GITLAB_TOKEN", raising=False)
-    result = run_cli(
-        [*_no_config(tmp_path), "--gitlab-url", "https://git.uni.edu", "setup"],
-        env={},
-        monkeypatch=monkeypatch,
-    )
+    args = [
+        *_no_config(tmp_path),
+        "--gitlab-url",
+        "https://git.uni.edu",
+        "setup",
+        "--roster",
+        _roster(tmp_path),
+    ]
+    result = run_cli(args, env={}, monkeypatch=monkeypatch)
     assert result.exit_code == 1
     assert "https://git.uni.edu/-/user_settings/personal_access_tokens" in result.output
 
@@ -89,6 +105,31 @@ def test_malformed_config_file(tmp_path):
     bad_toml = tmp_path / "config.toml"
     bad_toml.write_text("invalid_toml = = =\n")
 
-    result = run_cli(["--config", str(bad_toml), "setup"])
+    result = run_cli(["--config", str(bad_toml), "setup", "--roster", _roster(tmp_path)])
     assert result.exit_code == 1
     assert "Could not read config file" in result.output
+
+
+def test_setup_dry_run_prints_groups(tmp_path, monkeypatch):
+    monkeypatch.delenv("GITLAB_TOKEN", raising=False)
+    result = run_cli([*_no_config(tmp_path), "--dry-run", "setup", "--roster", _roster(tmp_path)])
+    assert result.exit_code == 0  # no token needed for dry run
+    assert "Roster" in result.output
+    assert "a@x.edu" in result.output
+
+
+def test_setup_dry_run_flag_after_subcommand(tmp_path, monkeypatch):
+    # --dry-run must work when placed after the subcommand, not just before it.
+    monkeypatch.delenv("GITLAB_TOKEN", raising=False)
+    result = run_cli([*_no_config(tmp_path), "setup", "--roster", _roster(tmp_path), "--dry-run"])
+    assert result.exit_code == 0
+    assert "dry run" in result.output.lower()
+
+
+def test_setup_bad_roster_reports_row(tmp_path, monkeypatch):
+    monkeypatch.delenv("GITLAB_TOKEN", raising=False)
+    bad = tmp_path / "bad.csv"
+    bad.write_text("email,group\nnope,1\n")
+    result = run_cli([*_no_config(tmp_path), "--dry-run", "setup", "--roster", str(bad)])
+    assert result.exit_code == 1
+    assert "row 2" in result.output
