@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -12,14 +13,17 @@ from graider.config import Config, require_token, resolve_config
 from graider.console import (
     console,
     print_error,
+    print_grade_table,
     print_project_summary,
     print_setup_preview,
     print_success,
 )
 from graider.errors import GraiderError
 from graider.gitlab_client import GitLabClient
+from graider.grading.runner import grade_project
 from graider.models import MemberState, ProjectState
 from graider.names import random_name
+from graider.project_config import load_repo_config
 from graider.roster import group_students, read_roster
 from graider.state import load_state, save_state
 from graider.templates import (
@@ -196,9 +200,32 @@ def _reconcile_members(client, project, group) -> None:
 
 
 @app.command()
-def grade(ctx: typer.Context) -> None:
-    """Run qlty + tests + coverage over projects. (stub)"""
-    console.print("grade: not yet implemented")
+def grade(
+    ctx: typer.Context,
+    repo: Path = typer.Option(Path("."), "--repo", help="Repo to grade (student mode)."),
+    workspace: Optional[Path] = typer.Option(
+        None,
+        "--workspace",
+        help="Grade every subdir with a .graider.yml (teacher mode).",
+    ),
+    results: Path = typer.Option(Path("grade-results.json"), "--results"),
+) -> None:
+    """Grade a repo (or a workspace of repos) with qlty + tests + coverage."""
+    if workspace is not None:
+        targets = sorted(d for d in workspace.iterdir() if (d / ".graider.yml").exists())
+        if not targets:
+            raise GraiderError(f"No repos with a .graider.yml under {workspace}")
+    else:
+        if load_repo_config(repo) is None:
+            raise GraiderError(f"No .graider.yml in {repo}; pass --workspace for teacher mode.")
+        targets = [repo]
+
+    graded = [grade_project(t) for t in targets]
+    print_grade_table(graded)
+    results.write_text(
+        json.dumps([g.model_dump() for g in graded], indent=2) + "\n", encoding="utf-8"
+    )
+    print_success(f"Graded {len(graded)} project(s) → {results}")
 
 
 @app.command()

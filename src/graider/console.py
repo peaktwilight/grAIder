@@ -3,7 +3,7 @@
 from rich.console import Console
 from rich.table import Table
 
-from graider.models import Group, InviteResult, InviteStatus, SetupState, Student
+from graider.models import GradeResult, Group, InviteResult, InviteStatus, SetupState, Student
 
 console = Console()
 err_console = Console(stderr=True)
@@ -81,5 +81,33 @@ def print_project_summary(state: SetupState) -> None:
             project.web_url,
             f"{ok}/{len(project.members)}",
             str(missing) or "",
+        )
+    console.print(table)
+
+
+def print_grade_table(results: list[GradeResult]) -> None:
+    table = Table(title="Grades")
+    table.add_column("Project", style="bold")
+    table.add_column("Tmpl")
+    table.add_column("Tests", justify="right")
+    table.add_column("Cov %", justify="right")
+    table.add_column("Issues", justify="right")
+    table.add_column("Smells", justify="right")
+    table.add_column("Notes")
+    for r in results:
+        tests = (
+            f"[green]{r.tests_passed}[/]"
+            if r.tests_failed == 0
+            else (f"[red]{r.tests_passed}/{r.tests_passed + r.tests_failed}[/]")
+        )
+        cov = "-" if r.coverage_percent is None else f"{r.coverage_percent}"
+        table.add_row(
+            r.project,
+            r.template,
+            tests,
+            cov,
+            str(r.qlty_issues),
+            str(r.qlty_smells),
+            "; ".join(r.errors),
         )
     console.print(table)

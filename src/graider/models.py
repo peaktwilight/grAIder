@@ -92,3 +92,14 @@ class SetupState(BaseModel):
     org: str = ""
     # keyed by group_number
     projects: dict[str, ProjectState] = {}
+
+
+class GradeResult(BaseModel):
+    project: str
+    template: str
+    qlty_issues: int = 0
+    qlty_smells: int = 0
+    tests_passed: int = 0
+    tests_failed: int = 0
+    coverage_percent: float | None = None
+    errors: list[str] = []
