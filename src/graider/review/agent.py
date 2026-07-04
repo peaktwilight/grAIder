@@ -53,7 +53,9 @@ _SYSTEM = (
 
 
 class ModelBackend(Protocol):
-    def run(self, system: str, user_prompt: str, model: str, output_format: type[T]) -> T: ...
+    def run(
+        self, system: str, user_prompt: str | list[dict], model: str, output_format: type[T]
+    ) -> T: ...
 
 
 class ApiBackend:
@@ -62,14 +64,18 @@ class ApiBackend:
     def __init__(self, client: anthropic.Anthropic | None = None) -> None:
         self._client = client
 
-    def run(self, system: str, user_prompt: str, model: str, output_format: type[T]) -> T:
+    def run(
+        self, system: str, user_prompt: str | list[dict], model: str, output_format: type[T]
+    ) -> T:
         client = self._client or anthropic.Anthropic()
         try:
             response = client.messages.parse(
                 model=model,
                 max_tokens=16000,
                 system=system,
-                messages=[{"role": "user", "content": user_prompt}],
+                # content accepts a str or a list of content blocks (e.g. a PDF
+                # document block for syllabus drafting); ty is over-strict here.
+                messages=[{"role": "user", "content": user_prompt}],  # ty: ignore[invalid-argument-type]
                 output_format=output_format,
             )
         except Exception as exc:
@@ -93,7 +99,14 @@ class ClaudeCodeBackend:
     def __init__(self, runner=None) -> None:
         self._runner = runner or _run_claude
 
-    def run(self, system: str, user_prompt: str, model: str, output_format: type[T]) -> T:
+    def run(
+        self, system: str, user_prompt: str | list[dict], model: str, output_format: type[T]
+    ) -> T:
+        if not isinstance(user_prompt, str):
+            raise GraiderError(
+                "The claude-code backend only supports text prompts; use "
+                "--backend api for PDF syllabi."
+            )
         schema = json.dumps(output_format.model_json_schema())
         prompt = (
             f"{system}\n\nReturn ONLY minified JSON matching this JSON schema, "
