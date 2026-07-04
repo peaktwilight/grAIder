@@ -72,6 +72,16 @@ grAIder builds this in at three points:
 
 Formative assessment works in both directions. Class-level summaries show how each criterion is distributed across the cohort — if error handling is unmet in 70% of projects, that is a signal to reteach the topic, not to grade harder. grAIder's reports surface these patterns so assessment data flows back into your teaching decisions.
 
+## Topic-specific approaches
+
+The principles above are general. For a few recurring CS topics — test-driven
+development, software design and refactoring, algorithm design, debugging, and
+code comprehension — there is strong topic-specific research you can lean on when
+authoring criteria and viva prompts. The [Topic Guides](topic_guides.md) page
+summarises each finding with sources and a concrete example of how an existing
+grAIder feature supports it (and the Agent Skill draws on the same guidance when
+it helps you draft a rubric).
+
 ## Further reading
 
 *   [Gold Standard PBL: Essential Project Design Elements — PBLWorks](https://www.pblworks.org/what-is-pbl/gold-standard-project-design)
