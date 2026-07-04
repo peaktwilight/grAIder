@@ -91,6 +91,15 @@ def render_report(grade: GradeResult | None, review: ReviewResult | None, url: s
         if evidence:
             lines += ["### Evidence", "", *[f"- {e}" for e in evidence], ""]
 
+        next_steps = [v for v in review.criteria if v.next_step.strip()]
+        if next_steps:
+            lines += [
+                "### Where to next",
+                "",
+                *[f"- {v.id}. {v.title}: {v.next_step.strip()}" for v in next_steps],
+                "",
+            ]
+
     return "\n".join(lines)
 
 
