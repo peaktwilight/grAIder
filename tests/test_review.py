@@ -166,3 +166,44 @@ def test_select_backend_multi_provider(monkeypatch):
 def test_select_backend_unknown_raises():
     with pytest.raises(GraiderError, match="Unknown backend"):
         select_backend("bogus")
+
+
+def test_api_backend_captures_usage():
+    from graider.models import Usage
+
+    out = ReviewOutput(overall_summary="ok", criteria=[])
+    client = MagicMock()
+    resp = MagicMock(parsed_output=out)
+    resp.usage.input_tokens = 12
+    resp.usage.output_tokens = 34
+    client.messages.parse.return_value = resp
+    backend = ApiBackend(client=client)
+    backend.run("s", "u", "m", ReviewOutput)
+    assert backend.last_usage == Usage(input_tokens=12, output_tokens=34)
+
+
+def test_openai_backend_captures_usage():
+    from graider.models import Usage
+
+    out = ReviewOutput(overall_summary="ok", criteria=[])
+    client = _openai_client(out.model_dump_json())
+    resp = client.chat.completions.create.return_value
+    resp.usage.prompt_tokens = 5
+    resp.usage.completion_tokens = 7
+    backend = OpenAICompatBackend(client=client)
+    backend.run("s", "u", "m", ReviewOutput)
+    assert backend.last_usage == Usage(input_tokens=5, output_tokens=7)
+
+
+def test_gemini_backend_captures_usage():
+    from graider.models import Usage
+
+    out = ReviewOutput(overall_summary="ok", criteria=[])
+    client = MagicMock()
+    resp = MagicMock(parsed=out)
+    resp.usage_metadata.prompt_token_count = 8
+    resp.usage_metadata.candidates_token_count = 9
+    client.models.generate_content.return_value = resp
+    backend = GeminiBackend(client=client)
+    backend.run("s", "u", "m", ReviewOutput)
+    assert backend.last_usage == Usage(input_tokens=8, output_tokens=9)

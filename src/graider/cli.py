@@ -27,6 +27,7 @@ from graider.console import (
     print_review,
     print_setup_preview,
     print_success,
+    print_usage,
 )
 from graider.criteria import (
     fetch_criteria_repo,
@@ -326,17 +327,20 @@ def review(
             console.print("Repo unchanged since last review; use --force to re-run.")
             return
 
+    be = select_backend(backend)
     result = review_project(
         repo,
         criteria.brief,
         in_scope,
         cutoff=str(cutoff) if cutoff is not None else "",
         model=model,
-        backend=select_backend(backend),
+        backend=be,
     )
     print_review(result)
     results_path.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
     print_success(f"Reviewed {len(in_scope)} criteria → {results_path}")
+    if be.last_usage:
+        print_usage(be.last_usage, model)
 
     if feedback != "none":
         _post_feedback(config, result, feedback, project_id, mr_iid, branch)
@@ -415,6 +419,7 @@ def interview(
         print_success(f"{len(topics)} topic(s) (dry run, no questions generated).")
         return
 
+    be = select_backend(backend)
     output = generate_interview(
         repo,
         criteria.brief,
@@ -422,11 +427,13 @@ def interview(
         guidance=prompt,
         per_topic=per_topic,
         model=model,
-        backend=select_backend(backend),
+        backend=be,
     )
     out.write_text(render_interview_md(repo.resolve().name, output), encoding="utf-8")
     total = sum(len(t.questions) for t in output.topics)
     print_success(f"Wrote {total} questions across {len(topics)} topic(s) → {out}")
+    if be.last_usage:
+        print_usage(be.last_usage, model)
 
 
 @app.command()
@@ -579,9 +586,12 @@ def criteria_init(
     force: bool = typer.Option(False, "--force"),
 ) -> None:
     """Draft a staggered-eval criteria repo from a syllabus."""
-    draft = draft_criteria(syllabus, model=model, backend=select_backend(backend))
+    be = select_backend(backend)
+    draft = draft_criteria(syllabus, model=model, backend=be)
     write_criteria_dir(draft, out, force=force)
     print_success(f"Drafted {len(draft.items)} criteria → {out} (released_up_to: 0)")
+    if be.last_usage:
+        print_usage(be.last_usage, model)
 
 
 @criteria_app.command("check")

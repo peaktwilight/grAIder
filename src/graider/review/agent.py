@@ -18,7 +18,7 @@ import anthropic
 from pydantic import BaseModel, ValidationError
 
 from graider.errors import GraiderError
-from graider.models import CriteriaItem, GradeResult, ReviewOutput, ReviewResult
+from graider.models import CriteriaItem, GradeResult, ReviewOutput, ReviewResult, Usage
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -54,6 +54,8 @@ _SYSTEM = (
 
 
 class ModelBackend(Protocol):
+    last_usage: Usage | None
+
     def run(
         self, system: str, user_prompt: str | list[dict], model: str, output_format: type[T]
     ) -> T: ...
@@ -64,6 +66,7 @@ class ApiBackend:
 
     def __init__(self, client: anthropic.Anthropic | None = None) -> None:
         self._client = client
+        self.last_usage: Usage | None = None
 
     def run(
         self, system: str, user_prompt: str | list[dict], model: str, output_format: type[T]
@@ -87,6 +90,10 @@ class ApiBackend:
         output = response.parsed_output
         if output is None:
             raise GraiderError("AI response could not be parsed.")
+        usage = getattr(response, "usage", None)
+        self.last_usage = _usage(
+            getattr(usage, "input_tokens", None), getattr(usage, "output_tokens", None)
+        )
         return output
 
 
@@ -99,6 +106,7 @@ class ClaudeCodeBackend:
 
     def __init__(self, runner=None) -> None:
         self._runner = runner or _run_claude
+        self.last_usage: Usage | None = None
 
     def run(
         self, system: str, user_prompt: str | list[dict], model: str, output_format: type[T]
@@ -128,6 +136,7 @@ class OpenAICompatBackend:
         self._base_url = base_url
         self._api_key = api_key
         self._client = client
+        self.last_usage: Usage | None = None
 
     @classmethod
     def from_env(cls, provider: str) -> OpenAICompatBackend:
@@ -159,6 +168,7 @@ class OpenAICompatBackend:
                 "This backend only supports text prompts; use --backend api for PDF syllabi."
             )
         client = self._client or self._make_client()
+        captured: list[Usage] = []
 
         def call(prompt: str) -> str:
             try:
@@ -172,9 +182,17 @@ class OpenAICompatBackend:
                     f"AI call failed ({exc}). Check your provider credentials "
                     "(e.g. OPENAI_API_KEY / GLM_API_KEY) and --model."
                 ) from exc
+            usage = getattr(resp, "usage", None)
+            one = _usage(
+                getattr(usage, "prompt_tokens", None), getattr(usage, "completion_tokens", None)
+            )
+            if one is not None:
+                captured.append(one)
             return resp.choices[0].message.content or ""
 
-        return _structured_via_json(call, system, user_prompt, output_format)
+        result = _structured_via_json(call, system, user_prompt, output_format)
+        self.last_usage = _sum_usage(captured)
+        return result
 
 
 class GeminiBackend:
@@ -187,6 +205,7 @@ class GeminiBackend:
     def __init__(self, *, api_key: str | None = None, client=None) -> None:
         self._api_key = api_key
         self._client = client
+        self.last_usage: Usage | None = None
 
     @classmethod
     def from_env(cls) -> GeminiBackend:
@@ -224,6 +243,11 @@ class GeminiBackend:
             raise GraiderError(
                 f"AI call failed ({exc}). Check your GEMINI_API_KEY and --model."
             ) from exc
+        meta = getattr(resp, "usage_metadata", None)
+        self.last_usage = _usage(
+            getattr(meta, "prompt_token_count", None),
+            getattr(meta, "candidates_token_count", None),
+        )
         parsed = getattr(resp, "parsed", None)
         if isinstance(parsed, output_format):
             return parsed
@@ -277,6 +301,23 @@ def _run_claude(prompt: str, model: str) -> str:
     if envelope.get("is_error"):
         raise GraiderError(f"Claude Code error: {envelope.get('result')}")
     return str(envelope.get("result", ""))
+
+
+def _usage(input_val, output_val) -> Usage | None:
+    """Build a Usage from raw token values, tolerating missing/non-int inputs."""
+    try:
+        return Usage(input_tokens=int(input_val), output_tokens=int(output_val))
+    except (TypeError, ValueError):
+        return None
+
+
+def _sum_usage(parts: list[Usage]) -> Usage | None:
+    if not parts:
+        return None
+    return Usage(
+        input_tokens=sum(p.input_tokens for p in parts),
+        output_tokens=sum(p.output_tokens for p in parts),
+    )
 
 
 def _structured_via_json[T: BaseModel](

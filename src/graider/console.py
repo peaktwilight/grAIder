@@ -14,7 +14,9 @@ from graider.models import (
     ReviewResult,
     SetupState,
     Student,
+    Usage,
 )
+from graider.pricing import estimate_cost
 
 console = Console()
 err_console = Console(stderr=True)
@@ -173,3 +175,9 @@ def print_review(result: ReviewResult) -> None:
         table.add_row(verdict.id, verdict.title, met, verdict.comment)
     console.print(table)
     console.print(f"\n[bold]Summary:[/] {result.overall_summary}")
+
+
+def print_usage(usage: Usage, model: str) -> None:
+    cost = estimate_cost(model, usage)
+    tail = f" — est. ${cost:.4f}" if cost is not None else ""
+    console.print(f"[dim]Tokens: {usage.input_tokens:,} in / {usage.output_tokens:,} out{tail}[/]")

@@ -125,6 +125,13 @@ class CriterionVerdict(BaseModel):
     comment: str
 
 
+class Usage(BaseModel):
+    """Token counts for one AI run."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
 class ReviewOutput(BaseModel):
     """Exactly what the model returns (structured-output schema)."""
 
