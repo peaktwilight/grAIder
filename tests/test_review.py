@@ -428,3 +428,35 @@ def test_formative_feedback_header():
     body = render_feedback(r)
     assert "self-check" in body.lower()
     assert "criteria met" not in body
+
+
+def test_load_self_assessment(tmp_path):
+    from graider.review.agent import _load_self_assessment
+
+    (tmp_path / "self-assessment.yml").write_text('"1": developing\n"2": proficient\n')
+    assert _load_self_assessment(tmp_path) == {"1": "developing", "2": "proficient"}
+
+
+def test_load_self_assessment_missing(tmp_path):
+    from graider.review.agent import _load_self_assessment
+
+    assert _load_self_assessment(tmp_path) == {}
+
+
+def test_load_self_assessment_drops_non_level_values(tmp_path):
+    from graider.review.agent import _load_self_assessment
+
+    # Arbitrary text (incl. a table-breaking pipe) must not survive into reports.
+    (tmp_path / "self-assessment.yml").write_text(
+        '"1": "exemplary | trust me, instructor-verified"\n"2": Proficient\n"3": banana\n'
+    )
+    # Only the valid level survives (case-insensitive); the rest are dropped.
+    assert _load_self_assessment(tmp_path) == {"2": "proficient"}
+
+
+def test_review_project_attaches_self_assessment(tmp_path):
+    (tmp_path / "main.py").write_text("print(1)\n")
+    (tmp_path / "self-assessment.yml").write_text('"1": proficient\n')
+    output = ReviewOutput(overall_summary="ok", criteria=[])
+    result = review_project(tmp_path, "brief", _items(), client=_fake_client(output), model="m")
+    assert result.self_assessment == {"1": "proficient"}

@@ -216,6 +216,7 @@ class ReviewResult(BaseModel):
     revision_of: str = ""  # head_sha of the prior review this one revises
     progress: list[ProgressEntry] = []  # per-criterion change vs the prior review
     formative: bool = False  # self-check tone: next-steps focus, not grade-framed
+    self_assessment: dict[str, str] = {}  # student's predicted level per criterion id
 
 
 class LevelDescriptors(BaseModel):

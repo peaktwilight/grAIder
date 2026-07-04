@@ -31,6 +31,7 @@ def test_every_language_has_core_files(language):
     assert ".gitlab-ci.yml" in files
     assert "qlty.toml" in files
     assert "README.md" in files
+    assert "REFLECTION.md" in files
 
 
 @pytest.mark.parametrize("language", TEMPLATES)

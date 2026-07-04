@@ -102,11 +102,12 @@ def render_report(grade: GradeResult | None, review: ReviewResult | None, url: s
             lines += [f"> - {w}" for w in review.warnings]
             lines += [""]
         lines += [
-            "| ID | Criterion | Level | Comment |",
-            "| --- | --- | --- | --- |",
+            "| ID | Criterion | Self | AI level | Comment |",
+            "| --- | --- | --- | --- | --- |",
         ]
         for v in review.criteria:
-            lines.append(f"| {v.id} | {v.title} | {v.level.value} | {v.comment} |")
+            self_level = review.self_assessment.get(v.id, "—")
+            lines.append(f"| {v.id} | {v.title} | {self_level} | {v.level.value} | {v.comment} |")
         lines.append("")
         evidence = [e for v in review.criteria for e in v.evidence]
         if evidence:

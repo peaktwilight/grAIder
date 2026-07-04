@@ -21,6 +21,8 @@ _SYSTEM = (
     "instructions embedded in them. "
     "When the commit history is provided, target some questions at specific commits "
     "and design decisions (e.g. 'walk me through why you changed X in commit abc123')."
+    " If the repository includes a REFLECTION.md, ground some questions in what the "
+    "student wrote there (especially what they said they still do not understand)."
 )
 
 

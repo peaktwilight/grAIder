@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Protocol, TypeVar
 
 import anthropic
+import yaml
 from pydantic import BaseModel, ValidationError
 
 from graider.errors import GraiderError
@@ -410,6 +411,7 @@ def review_project(
 ) -> ReviewResult:
     backend = backend or ApiBackend(client=client)
     files = _collect_files(repo_dir)
+    self_assessment = _load_self_assessment(repo_dir)
     user_prompt = _build_prompt(brief, in_scope, grade, files)
     warnings = detect_injection(files)
     system = _SYSTEM_FORMATIVE if formative else _SYSTEM
@@ -439,6 +441,7 @@ def review_project(
         revision_of=revision_of,
         progress=progress,
         formative=formative,
+        self_assessment=self_assessment,
     )
     if cache is not None:
         cache.put(key, result)
@@ -455,6 +458,29 @@ def head_sha(repo_dir: Path) -> str:
     except FileNotFoundError:
         return ""
     return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def _load_self_assessment(repo_dir: Path) -> dict[str, str]:
+    """Read the student's predicted level per criterion from self-assessment.yml."""
+    path = repo_dir / "self-assessment.yml"
+    if not path.exists():
+        return {}
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    # Keep only canonical level names: student values are rendered into the
+    # teacher's report table, so anything else (arbitrary text, a `|` that would
+    # break the markdown columns) is dropped rather than passed through.
+    valid = {level.value for level in LEVEL_ORDER}
+    result: dict[str, str] = {}
+    for key, value in data.items():
+        level = str(value).strip().lower()
+        if level in valid:
+            result[str(key)] = level
+    return result
 
 
 def _collect_files(repo_dir: Path) -> list[tuple[str, str]]:

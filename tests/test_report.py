@@ -109,3 +109,11 @@ def test_render_report_next_step():
     md = render_report(_grade(), _review())
     assert "### Where to next" in md
     assert "write some tests (topic 5)" in md
+
+
+def test_render_report_self_assessment():
+    review = _review()
+    review.self_assessment = {"1": "developing"}
+    md = render_report(_grade(), review)
+    assert "Self" in md
+    assert "developing" in md
