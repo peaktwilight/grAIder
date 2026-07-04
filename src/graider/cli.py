@@ -438,6 +438,44 @@ def init(
     print_success(f"Wrote {path} — edit it, then run `graider setup` with no flags.")
 
 
+skills_app = typer.Typer(help="Install grAIder skills for Claude Code.")
+app.add_typer(skills_app, name="skills")
+
+
+def _install_skills(dest_root: Path) -> list[str]:
+    from importlib.resources import files
+
+    root = files("graider") / "skills"
+    installed: list[str] = []
+    for skill_dir in root.iterdir():
+        if not skill_dir.is_dir():
+            continue
+        target = dest_root / skill_dir.name
+        target.mkdir(parents=True, exist_ok=True)
+        for item in skill_dir.iterdir():
+            if item.is_file():
+                (target / item.name).write_text(item.read_text(encoding="utf-8"), encoding="utf-8")
+                installed.append(f"{skill_dir.name}/{item.name}")
+    return installed
+
+
+@skills_app.command("install")
+def skills_install(
+    target: Optional[Path] = typer.Option(
+        None, "--dir", help="Skills directory (default: ~/.claude/skills)."
+    ),
+    project: bool = typer.Option(
+        False, "--project", help="Install into ./.claude/skills instead of the user dir."
+    ),
+) -> None:
+    """Install grAIder Agent Skills so Claude Code can drive the CLI."""
+    dest = Path(".claude/skills") if project else (target or Path.home() / ".claude" / "skills")
+    installed = _install_skills(dest)
+    if not installed:
+        raise GraiderError("No packaged skills found to install.")
+    print_success(f"Installed {len(installed)} skill file(s) → {dest}")
+
+
 criteria_app = typer.Typer(help="Author and validate grading criteria.")
 app.add_typer(criteria_app, name="criteria")
 
