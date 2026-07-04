@@ -41,9 +41,11 @@ staggered criteria with AI, and export reports.
   the teacher advances each week.
 - **Multiple classes:** if `graider.toml` has `[class.<name>]` sections, pass the
   global `--class <name>` (before the subcommand).
-- **AI review credentials:** the review needs an Anthropic API key
-  (`ANTHROPIC_API_KEY`) or `ant auth login`. On a Pro/Max subscription, a Claude
-  Code backend is planned (see the feature roadmap).
+- **AI review credentials:** the review needs credentials for the chosen
+  `--backend`. Default is Anthropic (`ANTHROPIC_API_KEY`, or the Claude Code CLI
+  on a Pro/Max subscription via `--backend claude-code`). Other providers are
+  supported too: `--backend openai` (`OPENAI_API_KEY`), `--backend gemini`
+  (`GEMINI_API_KEY`), and `--backend glm` (`GLM_API_KEY`).
 - **CI:** the starters' qlty jobs are `allow_failure`; tests must pass. Run
   `graider criteria check` in the criteria repo's CI to catch id/order/cutoff
   mistakes early.

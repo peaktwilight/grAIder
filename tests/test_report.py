@@ -170,3 +170,40 @@ def test_discrepancy_flagging():
 
     md2 = render_report(grade_good, review_bad)
     assert "Discrepancies" in md2
+
+
+def test_class_insights_aggregates():
+    from graider.models import CriterionVerdict, ReviewResult
+    from graider.models import PerformanceLevel as P
+    from graider.report.build import class_insights
+
+    def _rv(project, l1, l2):
+        return ReviewResult(
+            project=project,
+            head_sha="",
+            model="m",
+            cutoff="",
+            overall_summary="",
+            criteria=[
+                CriterionVerdict(id="1", title="Tests", level=l1, evidence=[], comment=""),
+                CriterionVerdict(id="2", title="Docs", level=l2, evidence=[], comment=""),
+            ],
+        )
+
+    pairs = [
+        (None, _rv("a", P.EMERGING, P.PROFICIENT)),
+        (None, _rv("b", P.EMERGING, P.EXEMPLARY)),
+    ]
+    md = class_insights(pairs)
+    assert "Projects reviewed: 2" in md
+    assert "Class insights" in md
+    # criterion 1 (both emerging = 0% met) is most-missed, so it sorts first
+    tests_pos = md.index("1. Tests")
+    docs_pos = md.index("2. Docs")
+    assert tests_pos < docs_pos
+
+
+def test_class_insights_empty():
+    from graider.report.build import class_insights
+
+    assert "No reviews" in class_insights([(None, None)])
