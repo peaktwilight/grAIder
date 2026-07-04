@@ -35,9 +35,10 @@ from graider.criteria import (
     split_by_cutoff,
 )
 from graider.errors import GraiderError
+from graider.feedback.render import REVIEW_MARKER, issue_title, render_feedback
 from graider.gitlab_client import GitLabClient
 from graider.grading.runner import grade_project
-from graider.models import MemberState, ProjectState
+from graider.models import MemberState, ProjectState, ReviewResult
 from graider.names import random_name
 from graider.project_config import load_repo_config
 from graider.report.build import (
@@ -297,6 +298,12 @@ def review(
     backend: str = typer.Option(
         "auto", "--backend", help="Model backend: auto | api | claude-code."
     ),
+    feedback: str = typer.Option(
+        "none", "--feedback", help="Post the review to GitLab: none | mr | issue."
+    ),
+    project_id: str = typer.Option("", "--project-id", help="GitLab project id/path for feedback."),
+    mr_iid: int = typer.Option(0, "--mr-iid", help="Merge request iid (for --feedback mr)."),
+    branch: str = typer.Option("", "--branch", help="Source branch to find the open MR."),
 ) -> None:
     """Evaluate a repo against the (staggered) criteria. (loading + preview)"""
     config = _config(ctx)
@@ -330,6 +337,9 @@ def review(
     results_path.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
     print_success(f"Reviewed {len(in_scope)} criteria → {results_path}")
 
+    if feedback != "none":
+        _post_feedback(config, result, feedback, project_id, mr_iid, branch)
+
 
 def _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path) -> Path:
     if criteria_dir is not None:
@@ -343,6 +353,33 @@ def _resolve_criteria_dir(repo, criteria_dir, criteria_repo, criteria_path) -> P
         "No criteria source: pass --criteria-dir, --criteria-repo, or run in a "
         "repo whose .graider.yml points at a criteria repo."
     )
+
+
+def _post_feedback(
+    config: Config,
+    result: ReviewResult,
+    feedback: str,
+    project_id: str,
+    mr_iid: int,
+    branch: str,
+) -> None:
+    """Post the review to a GitLab MR note (E3) or issue (E4)."""
+    if feedback not in ("mr", "issue"):
+        raise GraiderError(f"Unknown --feedback {feedback!r}; use none | mr | issue.")
+    if not project_id:
+        raise GraiderError("--feedback needs --project-id (the GitLab project id or path).")
+    token = require_token(config)
+    client = GitLabClient(config.gitlab_url, token, dry_run=config.dry_run)
+    body = render_feedback(result)
+    if feedback == "issue":
+        client.upsert_issue(project_id, issue_title(result), body, REVIEW_MARKER)
+        print_success(f"Posted review as an issue on {project_id}.")
+        return
+    iid = mr_iid or (client.find_open_mr_iid(project_id, branch) if branch else None)
+    if not iid:
+        raise GraiderError("--feedback mr needs --mr-iid or --branch with an open merge request.")
+    client.upsert_mr_note(project_id, iid, body, REVIEW_MARKER)
+    print_success(f"Posted review to MR !{iid} on {project_id}.")
 
 
 @app.command()

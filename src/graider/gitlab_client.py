@@ -148,6 +148,47 @@ class GitLabClient:
                 f"Could not push initial commit to project {project_id}: {exc}"
             ) from exc
 
+    def find_open_mr_iid(self, project_id: int | str, source_branch: str) -> int | None:
+        """Return the iid of the open MR for a source branch, or None."""
+        try:
+            project = self._gl.projects.get(project_id, lazy=True)
+            mrs = project.mergerequests.list(
+                state="opened", source_branch=source_branch, get_all=True
+            )
+        except GitlabError as exc:
+            raise GitLabError(f"Could not list merge requests: {exc}") from exc
+        return mrs[0].iid if mrs else None
+
+    def upsert_mr_note(self, project_id: int | str, mr_iid: int, body: str, marker: str) -> None:
+        """Create or update (by marker) a note on a merge request. No-op in dry-run."""
+        if self.dry_run:
+            return
+        try:
+            mr = self._gl.projects.get(project_id, lazy=True).mergerequests.get(mr_iid, lazy=True)
+            for note in mr.notes.list(get_all=True):
+                if marker in (getattr(note, "body", "") or ""):
+                    note.body = body
+                    note.save()
+                    return
+            mr.notes.create({"body": body})
+        except GitlabError as exc:
+            raise GitLabError(f"Could not post MR note: {exc}") from exc
+
+    def upsert_issue(self, project_id: int | str, title: str, body: str, marker: str) -> None:
+        """Create or update (by marker) an issue. No-op in dry-run."""
+        if self.dry_run:
+            return
+        try:
+            project = self._gl.projects.get(project_id, lazy=True)
+            for issue in project.issues.list(state="opened", get_all=True):
+                if marker in (getattr(issue, "description", "") or ""):
+                    issue.description = body
+                    issue.save()
+                    return
+            project.issues.create({"title": title, "description": body})
+        except GitlabError as exc:
+            raise GitLabError(f"Could not create issue: {exc}") from exc
+
 
 def _user_emails(user: object) -> Iterator[str]:
     """Yield the string email attributes present on a user object.
