@@ -1,6 +1,6 @@
 [project]
 name = "graider"
-version = "0.1.1"
+version = "0.1.2"
 description = "A CLI for setting up, grading, and AI-reviewing GitLab coursework projects."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -15,6 +15,7 @@ classifiers = [
 ]
 dependencies = [
     "typer>=0.12",
+    "click>=8.1",  # used directly in cli.py (click.edit); not just a typer transitive
     "rich>=13.7",
     "pydantic>=2.7",
     "openpyxl>=3.1",
