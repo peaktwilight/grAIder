@@ -1,9 +1,18 @@
 [project]
 name = "graider"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.1.1"
+description = "A CLI for setting up, grading, and AI-reviewing GitLab coursework projects."
 readme = "README.md"
 requires-python = ">=3.13"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Education",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Education",
+    "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = [
     "typer>=0.12",
     "rich>=13.7",
@@ -17,6 +26,12 @@ dependencies = [
 [project.optional-dependencies]
 openai = ["openai>=1.30"]
 google = ["google-genai>=0.3"]
+
+[project.urls]
+Homepage = "https://peaktwilight.github.io/grAIder/"
+Documentation = "https://peaktwilight.github.io/grAIder/"
+Repository = "https://github.com/peaktwilight/grAIder"
+Issues = "https://github.com/peaktwilight/grAIder/issues"
 
 [project.scripts]
 graider = "graider.cli:run"
