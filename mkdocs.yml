@@ -5,6 +5,10 @@ theme:
     - navigation.tabs
     - navigation.sections
 
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+
 nav:
   - Home: index.md
   - Learning Science: learning_science.md

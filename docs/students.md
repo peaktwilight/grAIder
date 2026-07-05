@@ -43,10 +43,10 @@ This command will:
 
 To check your implementation against the course criteria using AI, you can run a local review.
 
-> [!NOTE]
-> The AI review needs access to Claude. Either set `ANTHROPIC_API_KEY` in your
-> shell, or install the `claude` CLI and run `claude login` to use a Claude
-> Pro/Max subscription (`--backend claude-code`).
+!!! note
+    The AI review needs access to Claude. Either set `ANTHROPIC_API_KEY` in your
+    shell, or install the `claude` CLI and run `claude login` to use a Claude
+    Pro/Max subscription (`--backend claude-code`).
 
 If you have a local copy of the grading criteria folder (or your instructor has provided access to the criteria repository), run:
 
@@ -67,11 +67,12 @@ This will:
 3.  Perform an AI evaluation of your codebase using Claude and output a detailed verdict for each criterion.
 4.  Save the review report to `review-results.json`.
 
-> [!TIP]
-> You can preview which criteria are currently in-scope for evaluation without running the actual AI model by using the `--dry-run` flag:
-> ```bash
-> graider review --dry-run
-> ```
+!!! tip
+    You can preview which criteria are currently in-scope for evaluation without running the actual AI model by using the `--dry-run` flag:
+
+    ```bash
+    graider review --dry-run
+    ```
 
 ---
 

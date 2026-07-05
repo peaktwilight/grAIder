@@ -119,12 +119,12 @@ graider criteria init --syllabus syllabus.pdf --out ./criteria
 
 This drafts a `./criteria/criteria.md` outlining the project brief and criteria list, and initializes `./criteria/graider-criteria.yml` with the default milestone cutoff.
 
-> [!TIP]
-> When you refine the drafted criteria (especially the `### Levels` descriptors),
-> the grAIder Agent Skill can suggest research-backed patterns for specific topics
-> — SOLO-phrased levels for algorithms, test-process and test-quality criteria,
-> reasoning-focused design/refactoring descriptors, and debugging-process
-> criteria. See the [Topic Guides](topic_guides.md) for the rationale and examples.
+!!! tip
+    When you refine the drafted criteria (especially the `### Levels` descriptors),
+    the grAIder Agent Skill can suggest research-backed patterns for specific topics
+    — SOLO-phrased levels for algorithms, test-process and test-quality criteria,
+    reasoning-focused design/refactoring descriptors, and debugging-process
+    criteria. See the [Topic Guides](topic_guides.md) for the rationale and examples.
 
 ### Validating Criteria
 
@@ -173,8 +173,8 @@ For each group, grAIder:
 4.  Invites the group students to the repository.
 5.  Stores the created resources in `graider.lock.json`.
 
-> [!NOTE]
-> The `setup` command is idempotent and resumable. If it is interrupted, running it again will resume from the last created project stored in the `graider.lock.json` state file.
+!!! note
+    The `setup` command is idempotent and resumable. If it is interrupted, running it again will resume from the last created project stored in the `graider.lock.json` state file.
 
 ---
 
