@@ -44,7 +44,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "mkdocs>=1.6.1",
-    "mkdocs-material>=9.7.6",
+    "mkdocs-material>=9.7.7",
     "pytest>=8.0",
     "ruff>=0.12",
     "ty",
@@ -79,3 +79,6 @@ addopts = "-m 'not integration'"
 markers = [
     "integration: renders a starter and builds it with a real toolchain (needs uv/gradle/cmake)",
 ]
+
+[tool.uv]
+constraint-dependencies = ["anyio==4.14.2", "certifi==2026.10.19", "cryptography==50.0.0", "pyasn1==0.6.4", "urllib3==2.8.0"]
