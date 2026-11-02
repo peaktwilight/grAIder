@@ -489,14 +489,17 @@ def _load_self_assessment(repo_dir: Path) -> dict[str, str]:
 def _collect_files(repo_dir: Path) -> list[tuple[str, str]]:
     files: list[tuple[str, str]] = []
     total = 0
+    root = repo_dir.resolve()
     for path in sorted(repo_dir.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in _TEXT_SUFFIXES:
             continue
         if any(part in _SKIP_DIRS for part in path.parts):
             continue
         try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+            resolved = path.resolve()
+            resolved.relative_to(root)
+            text = resolved.read_text(encoding="utf-8")
+        except (OSError, RuntimeError, ValueError, UnicodeDecodeError):
             continue
         total += len(text.encode("utf-8"))
         if total > _MAX_TOTAL_BYTES:
