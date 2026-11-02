@@ -67,34 +67,7 @@ def _run_tests(repo_dir: Path, template: str, result: GradeResult) -> None:
 
 
 def _tests_python(repo_dir: Path, result: GradeResult) -> None:
-    junit = repo_dir / ".graider-junit.xml"
-    cov = repo_dir / ".graider-cov.json"
-
-    # Isolate the inner uv from the outer virtualenv and relative UV_CACHE_DIR
-    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
-    if "UV_CACHE_DIR" in env:
-        cache_path = Path(env["UV_CACHE_DIR"])
-        if not cache_path.is_absolute():
-            env["UV_CACHE_DIR"] = str(repo_dir.parent / ".uv-cache")
-    else:
-        env["UV_CACHE_DIR"] = str(repo_dir.parent / ".uv-cache")
-
-    _capture(
-        [
-            "uv",
-            "run",
-            "--with",
-            "pytest-cov",
-            "pytest",
-            f"--junit-xml={junit}",
-            "--cov=.",
-            f"--cov-report=json:{cov}",
-        ],
-        repo_dir,
-        env=env,
-    )
-    _parse_junit(junit, result)
-    _parse_coverage_json(cov, result)
+    raise GraiderError("Student code execution requires an OS-isolated grading worker")
 
 
 def _tests_java(repo_dir: Path, result: GradeResult) -> None:
